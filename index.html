@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="مساعد ذكي لأخصائي تحليل السلوك (BCBA): رصد رفع اليد والتصفيق والقيام من الكرسي بالكاميرا داخل الجهاز دون تسجيل فيديو.">
+<meta name="theme-color" content="#1D5C63">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>مساعد BCBA الذكي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: clinical workbench — a fixed side rail of tools (right, RTL), a working sheet in the middle styled like an ABA frequency data sheet: tally marks, timestamped rows, agreement gauges. */
+:root{
+  --paper:#EFF2EF; --sheet:#FFFFFF; --ink:#14221E; --muted:#56665F; --line:#D5DDD8; --rule:#E7ECE9;
+  --accent:#1D5C63; --accent-ink:#FFFFFF; --accent-soft:#E1EEEE;
+  --b-raise:#2F5FC4; --b-clap:#B83B6B; --b-stand:#6E46AE;
+  --good:#2C7A47; --warn:#A86A12; --bad:#B23A2C;
+  --display:"Alexandria","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --body:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E1513; --sheet:#151F1C; --ink:#E2EAE6; --muted:#97A7A0; --line:#2B3A35; --rule:#1F2B27;
+  --accent:#6BB7BD; --accent-ink:#0B1714; --accent-soft:#1B3134;
+  --b-raise:#86A6F2; --b-clap:#EC85A8; --b-stand:#B79BEA;
+  --good:#6CC28B; --warn:#E0A54A; --bad:#EE8576; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#0E1513; --sheet:#151F1C; --ink:#E2EAE6; --muted:#97A7A0; --line:#2B3A35; --rule:#1F2B27;
+  --accent:#6BB7BD; --accent-ink:#0B1714; --accent-soft:#1B3134;
+  --b-raise:#86A6F2; --b-clap:#EC85A8; --b-stand:#B79BEA;
+  --good:#6CC28B; --warn:#E0A54A; --bad:#EE8576; color-scheme:dark }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--paper);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.65}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:1.5rem;font-weight:700} h2{font-size:1.2rem;font-weight:600} h3{font-size:1rem;font-weight:600}
+p{margin:0}
+.mono,time,.num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* rail */
+.rail{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;height:100vh;padding-block:24px;padding-inline:16px;border-inline-start:1px solid var(--line);display:flex;flex-direction:column;gap:20px;background:var(--paper)}
+.brand{display:flex;flex-direction:column;gap:4px}
+.brand b{font-family:var(--display);font-size:1.05rem}
+.brand span{font-size:.78rem;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;font-size:.92rem;color:var(--muted)}
+.nav button:hover{background:var(--rule);color:var(--ink)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.nav button .ix{font-family:var(--mono);font-size:.72rem;width:18px;color:var(--muted)}
+.nav .sep{height:1px;background:var(--line);margin:8px 4px}
+.nav button.off{opacity:.45}
+.cur-file{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:4px 10px 8px;font-size:.78rem;color:var(--muted)}
+.cur-file b{font-size:1rem;color:var(--ink)}
+.cur-file span:first-child{flex-basis:100%}
+.cur-file.none{font-style:italic}
+.fileno{font-family:var(--mono);font-size:2.4rem;font-weight:500;letter-spacing:.06em;direction:ltr;unicode-bidi:isolate}
+.badge-count{margin-inline-start:auto;font-family:var(--mono);font-size:.72rem;background:var(--warn);color:var(--sheet);border-radius:10px;padding:0 7px}
+.store-chip{margin-top:auto;font-size:.76rem;color:var(--muted);display:flex;gap:6px;align-items:flex-start}
+.store-chip i{width:8px;height:8px;border-radius:50%;background:var(--muted);margin-top:7px;flex:none}
+.store-chip.shared i{background:var(--good)}
+
+main{min-width:0;overflow-x:clip;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1080px;margin-inline:auto;display:flex;flex-direction:column;gap:22px}
+.view[hidden]{display:none!important}
+.head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.head .t{display:flex;flex-direction:column;gap:6px;min-width:0}
+.eyebrow{font-size:.74rem;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.lead{color:var(--muted);max-width:68ch}
+
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:10px;padding:20px}
+.sheet.flush{padding:0;overflow:hidden}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.muted{color:var(--muted)} .small{font-size:.84rem}
+hr{border:0;border-top:1px solid var(--rule);margin:0}
+
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--sheet);border-radius:7px;padding:7px 14px;font-size:.9rem;font-weight:500;display:inline-flex;gap:8px;align-items:center}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:4px 10px;font-size:.82rem}
+
+label.f{display:flex;flex-direction:column;gap:5px;font-size:.84rem;color:var(--muted);min-width:0}
+input[type=text],input[type=number],input[type=date],select,textarea{background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:7px 10px;color:var(--ink);width:100%;min-width:0}
+textarea{min-height:90px;resize:vertical;line-height:1.6}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.92rem}
+.check input{margin-top:6px;accent-color:var(--accent)}
+
+/* KPI */
+.kpi{display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-inline-start:3px solid var(--rule)}
+.kpi .v{font-family:var(--display);font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi .k{font-size:.82rem;color:var(--muted)}
+.kpi.attn{border-inline-start-color:var(--warn)}
+
+/* behaviour chips & tallies */
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:2px 9px;border-radius:20px;border:1px solid currentColor;white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.c-raise{color:var(--b-raise)} .c-clap{color:var(--b-clap)} .c-stand{color:var(--b-stand)}
+.pill{font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:4px;white-space:nowrap}
+.p-pending{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.p-approved{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.p-rejected{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.p-undet{background:var(--rule);color:var(--muted)}
+.tally{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:30px}
+.tally svg{display:block}
+.counter{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-top:3px solid currentColor;background:var(--sheet);border-radius:0 0 8px 8px}
+.counter .n{font-family:var(--display);font-size:2rem;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.counter .lbl{font-weight:600}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th{font-weight:600;color:var(--muted);font-size:.78rem;text-align:start;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td .ctx{min-width:170px}
+
+/* session */
+.stage{position:relative;background:#0B0F0E;border-radius:10px;overflow:hidden;aspect-ratio:16/9;max-width:100%}
+.stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.stage .empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#C9D4CF;text-align:center;padding:20px}
+.stage .empty svg{opacity:.75}
+.privacy{display:flex;gap:10px;align-items:flex-start;font-size:.84rem;color:var(--muted);background:var(--accent-soft);border-radius:8px;padding:10px 12px}
+.progress{height:6px;background:var(--rule);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.timeline{width:100%;height:auto;display:block}
+.status-line{font-size:.86rem;color:var(--muted);min-height:1.4em}
+.notice{padding:10px 14px;border-radius:8px;font-size:.88rem;border:1px solid var(--line);background:var(--sheet)}
+.notice.warn{border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+.notice.bad{border-color:color-mix(in srgb,var(--bad) 50%,var(--line))}
+
+/* definitions */
+.def{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 16px;font-size:.92rem}
+.def dt{color:var(--muted);font-size:.82rem;padding-top:2px}
+.def dd{margin:0}
+.beh-card{border-top:3px solid currentColor}
+.beh-card .inner{color:var(--ink);display:flex;flex-direction:column;gap:14px}
+
+/* ioa */
+.gauge{display:flex;flex-direction:column;gap:6px}
+.gauge .bar{position:relative;height:10px;border-radius:5px;background:var(--rule)}
+.gauge .bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:5px}
+.gauge .bar b{position:absolute;inset-block:-4px;width:2px;background:var(--ink);inset-inline-start:80%}
+.verdict{font-weight:600;font-size:.84rem}
+
+/* report */
+.chart svg{width:100%;height:auto;display:block}
+.out{white-space:pre-wrap;line-height:1.85;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-height:120px}
+
+/* method */
+.method{max-width:72ch;display:flex;flex-direction:column;gap:14px}
+.method ol,.method ul{margin:0;padding-inline-start:22px;display:flex;flex-direction:column;gap:6px}
+.formula{font-family:var(--mono);direction:ltr;text-align:left;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:.86rem;overflow-x:auto}
+.refs li{font-size:.86rem}
+
+.toast{position:fixed;inset-inline-start:50%;transform:translateX(50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:8px;font-size:.88rem;z-index:20;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{position:sticky;top:env(safe-area-inset-top,0px);height:auto;z-index:5;flex-direction:row;align-items:center;gap:12px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-inline-start:0;border-bottom:1px solid var(--line);overflow-x:auto}
+  .brand span,.store-chip,.nav .sep,.nav .ix{display:none}
+  .cur-file{flex-wrap:nowrap;padding:0 6px;white-space:nowrap;border-inline-start:1px solid var(--line);margin-inline-start:4px}
+  .cur-file span:first-child{display:none}
+  .brand b{white-space:nowrap;font-size:.95rem}
+  .nav{flex-direction:row;gap:2px}
+  .nav button{white-space:nowrap;padding:6px 10px}
+  .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .g3{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:620px){ .g2{grid-template-columns:minmax(0,1fr)} .def{grid-template-columns:minmax(0,1fr)} .def dt{padding-top:6px} }
+@media (max-width:620px){
+  table.cards thead{display:none}
+  table.cards,table.cards tbody,table.cards td{display:block;width:100%}
+  table.cards tr{display:grid;grid-template-columns:60px minmax(0,1fr);column-gap:12px;row-gap:6px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  table.cards tr:last-child{border-bottom:0}
+  table.cards td{border:0;padding:0;grid-column:2;min-width:0}
+  table.cards td:first-child{grid-column:1;grid-row:1 / span 8}
+  table.cards td[data-l]::before{content:attr(data-l);display:block;font-size:.72rem;color:var(--muted);margin-bottom:2px}
+  table.cards td .ctx{min-width:0;width:100%}
+  table.cards td .row{flex-wrap:wrap!important}
+  table.cards td .btn.sm{padding:7px 16px;font-size:.9rem}
+}
+.cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:5rem;font-weight:700;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6);pointer-events:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="app" dir="rtl" lang="ar">
+  <aside class="rail">
+    <div class="brand"><b>مساعد BCBA الذكي</b><span>تجربة: دقة نظام الرؤية الحاسوبية في رصد السلوكيات الحركية</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="store-chip" id="storeChip"><i></i><span>جارٍ الاتصال بالمخزن…</span></div>
+  </aside>
+  <main><div class="wrap" id="views"></div></main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="config.js"></script>
+<script>
+/* ---------- constants ---------- */
+const BEH = {
+  raise:{name:'رفع اليد', cls:'c-raise', varc:'--b-raise',
+    def:'وصول الرسغ إلى مستوى أعلى من الكتف.',
+    start:'تبدأ الحالة عند تجاوز هذا المستوى.',
+    end:'تنتهي عند نزول الرسغ إلى مستوى الكتف أو أقل.',
+    rule:'رفع اليدين معًا يُحسب حالة واحدة، مع تسجيل هل الرفع بيد واحدة أو باليدين. استمرار اليد مرفوعة لا يُحسب مرات إضافية، وتُحسب حالة جديدة بعد نزول اليدين ثم الرفع مجددًا.',
+    tech:'مقارنة موضع الرسغ (النقطتان 15 و16) بموضع الكتف (11 و12). بداية الحالة عند ارتفاع الرسغ فوق الكتف بهامش صغير، ونهايتها عند عودته إلى مستوى الكتف، مع تأكيد إطارين متتاليين.'},
+  clap:{name:'التصفيق', cls:'c-clap', varc:'--b-clap',
+    def:'كل تلامس بين راحتي الكفين، يليه انفصالهما.',
+    start:'لحظة تلامس الكفين.',
+    end:'لحظة انفصالهما.',
+    rule:'كل تلامس يليه انفصال يُحسب تصفيقة واحدة. خمس تصفيقات متتابعة تُحسب خمسًا. بقاء الكفين متلامسين لا يُحسب تصفيقات إضافية، ولا نحتاج فاصلًا زمنيًا ثابتًا ما دمنا نعدّ كل تصفيقة منفردة.',
+    tech:'المسافة بين الكفين (منتصف الرسغ وطرف السبابة) منسوبةً إلى عرض الكتفين. أقل من 0.45 = تلامس، أكثر من 0.75 = انفصال. للعرض فقط، تُجمع التصفيقات المتقاربة (أقل من 1.5 ثانية) في سطر واحد، وكل تصفيقة تُعدّ منفردة.'},
+  stand:{name:'القيام من الكرسي', cls:'c-stand', varc:'--b-stand',
+    def:'الانتقال من الجلوس إلى الوقوف الكامل على القدمين مع ابتعاد الأرداف عن المقعد.',
+    start:'الانتقال من وضع الجلوس.',
+    end:'الوصول إلى الوقوف الكامل.',
+    rule:'النهوض الجزئي ثم الجلوس لا يُحسب وقوفًا كاملًا. استمرار الشخص واقفًا يُحسب مرة واحدة، وتُحسب مرة جديدة بعد جلوسه ثم وقوفه مجددًا.',
+    tech:'زاوية الركبة (ورك–ركبة–كاحل) وارتفاع الورك عن الركبة منسوبًا إلى طول الجذع. جلوس: زاوية ≤ 120° أو الورك بمستوى الركبة تقريبًا (عند التصوير من الأمام). وقوف: زاوية ≥ 160° والورك أعلى من الركبة بنصف طول الجذع، لمدة 0.3 ثانية.'}
+};
+const BKEYS = ['raise','clap','stand'];
+const EXP = 'دقة نظام الرؤية الحاسوبية في رصد السلوكيات الحركية';
+const CONSENT = `نموذج موافقة ولي الأمر على مشاركة طفل في تجربة بحثية
+
+عنوان التجربة: ${'دقة نظام الرؤية الحاسوبية في رصد السلوكيات الحركية'}
+المشروع: الأولمبياد الوطني للإبداع العلمي «إبداع»
+الطالبة الباحثة: ......................
+الأخصائية المشرفة (BCBA): ......................
+
+أنا ولي أمر الطفل/ـة: ...................... (يُستخدم رمز بدل الاسم في البيانات)
+أوافق على مشاركته/ا في التجربة، وقد فهمت ما يلي:
+1. تُستخدم كاميرا تحلّل حركة الجسم داخل الجهاز مباشرة، ولا يُسجَّل فيديو ولا تُحفظ صورة الطفل أو وجهه.
+2. يُحفظ فقط عدد مرات ثلاث حركات (رفع اليد، التصفيق، القيام من الكرسي) وأوقاتها، تحت رمز لا يدل على هوية الطفل.
+3. تُستخدم النتائج لأغراض البحث فقط، ولا يُنشر ما يدل على هوية الطفل.
+4. يتوقف الرصد فورًا إذا انزعج الطفل، ويحق لي إيقاف المشاركة وحذف البيانات في أي وقت دون أي أثر.
+5. تحضر التجربة/يُبلَّغ بها ولي الأمر، وتشرف عليها أخصائية معتمدة.
+
+اسم ولي الأمر: ......................
+صلة القرابة: ......................
+التوقيع: ......................
+التاريخ: ......................`;
+const VIEWS = [
+  ['files','ملفات الأطفال'],
+  ['home','لوحة الطفل'],['child','ملف الطفل'],['session','جلسة رصد'],['review','مراجعة الأحداث'],['ioa','الاتفاق والدقة'],['report','التقرير الأسبوعي'],
+  ['behaviors','السلوكيات المستهدفة'],['sources','مكتبة المصادر'],['method','المنهجية والمعايير']
+];
+const CHILD_VIEWS = ['home','child','session','review','ioa','report'];
+const fmtFile = n => String(n||0).padStart(4,'0');
+const nextFileNo = () => Math.max(0, ...S.children.map(c=>+c.fileNo||0)) + 1;
+const blankChild = () => ({code:'', kind:'child', age:'', setting:'', goals:'', report:'', consentGuardian:false, consentAssent:false, consentSpecialist:false});
+const IOA_OK = 80, IOA_GOOD = 90, TOL = 1.5, INTERVAL = 10;
+
+/* ---------- utils ---------- */
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const fmtT = s => { if(s==null||isNaN(s)) return '—'; const m=Math.floor(s/60), r=s-m*60; return m+':'+(r<10?'0':'')+r.toFixed(1); };
+const fmtDur = s => { s=Math.round(s||0); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), r=s%60; return h? `${h} س ${m} د` : m? `${m} د ${r} ث` : `${r} ث`; };
+const ymd = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const today = () => ymd(new Date());
+const pct = v => v==null ? '—' : (Math.round(v*10)/10)+'%';
+const sum = a => a.reduce((x,y)=>x+y,0);
+function parseTimes(str){ return String(str||'').split(/[،,\s]+/).map(x=>x.trim()).filter(Boolean).map(x=>{ const p=x.split(':'); return p.length>1? (+p[0])*60+(+p[1]) : +x; }).filter(x=>!isNaN(x)).sort((a,b)=>a-b); }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2400); }
+function tallySVG(n, color){
+  if(n>40) return `<span class="num" style="font-size:1.1rem;font-weight:600">${n}</span>`;
+  let out='', groups=Math.floor(n/5), rest=n%5;
+  const g = k => { let l=''; for(let i=0;i<Math.min(k,4);i++) l+=`<line x1="${5+i*7}" y1="3" x2="${5+i*7}" y2="25" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`; if(k===5) l+=`<line x1="1" y1="20" x2="30" y2="7" stroke="${color}" stroke-width="2" stroke-linecap="round"/>`; return `<svg width="${k===5?32:6+Math.min(k,4)*7}" height="28" viewBox="0 0 ${k===5?32:6+Math.min(k,4)*7} 28" aria-hidden="true">${l}</svg>`; };
+  for(let i=0;i<groups;i++) out+=g(5);
+  if(rest) out+=g(rest);
+  return out || `<span class="muted small">لا شيء بعد</span>`;
+}
+
+/* ---------- storage (shared db when available, else this browser) ---------- */
+const Store = {
+  mode:'none', db:null,
+  sb:null, user:null,
+  async init(){
+    const cfg=window.BCBA_CONFIG||{};
+    if(cfg.supabaseUrl && cfg.supabaseKey){
+      try{ await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
+        this.sb=window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey); this.mode='cloud';
+        const r=await this.sb.auth.getSession(); this.user=r.data?.session?.user||null; return; }
+      catch(e){ this.cloudError='تعذّر الاتصال بقاعدة البيانات، والبيانات تُحفظ مؤقتًا في هذا الجهاز.'; this.sb=null; }
+    }
+    try{
+      if(window.claude && typeof window.claude.use==='function'){
+        const db = await Promise.race([window.claude.use('db'), new Promise(r=>setTimeout(()=>r(null),6000))]);
+        if(db){ this.db=db; this.mode='db'; return; }
+      }
+    }catch(e){}
+    try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); this.mode='local'; }catch(e){ this.mode='memory'; }
+  },
+  _mem:{},
+  _lk(c){ return 'bcba:'+c; },
+  _lread(c){ if(this.mode==='memory') return this._mem[c]||{}; try{ return JSON.parse(localStorage.getItem(this._lk(c))||'{}'); }catch(e){ return {}; } },
+  _lwrite(c,o){ if(this.mode==='memory'){ this._mem[c]=o; return; } try{ localStorage.setItem(this._lk(c),JSON.stringify(o)); }catch(e){} },
+  async _q(q){ const {data,error}=await q; if(error) throw new Error(error.message); return data; },
+  async list(c){
+    if(this.sb){ const rows=await this._q(this.sb.from('records').select('id,data').eq('collection',c).limit(5000)); return rows.map(r=>({...r.data, id:r.id})); }
+    if(this.db){ const s=await this.db.collection(c).get(); return s.docs.map(d=>({id:d.id,...d.data()})); }
+    return Object.entries(this._lread(c)).map(([id,v])=>({id,...v}));
+  },
+  async get(c,id){
+    if(this.sb){ const r=await this._q(this.sb.from('records').select('id,data').eq('collection',c).eq('id',id).maybeSingle()); return r? {...r.data, id:r.id} : null; }
+    if(this.db){ const d=await this.db.doc(c+'/'+id).get(); return d.exists? {id,...d.data()} : null; }
+    const o=this._lread(c); return o[id]? {id,...o[id]} : null;
+  },
+  async set(c,id,data){
+    const clean = JSON.parse(JSON.stringify(data)); delete clean.id;
+    if(this.sb) return this._q(this.sb.from('records').upsert({collection:c, id, data:clean}));
+    if(this.db) return this.db.doc(c+'/'+id).set(clean);
+    const o=this._lread(c); o[id]=clean; this._lwrite(c,o);
+  },
+  async update(c,id,patch){
+    if(this.sb){ const cur=await this.get(c,id)||{}; delete cur.id; return this.set(c,id,{...cur, ...JSON.parse(JSON.stringify(patch))}); }
+    if(this.db) return this.db.doc(c+'/'+id).update(JSON.parse(JSON.stringify(patch)));
+    const o=this._lread(c); o[id]={...(o[id]||{}),...patch}; this._lwrite(c,o);
+  },
+  async del(c,id){
+    if(this.sb) return this._q(this.sb.from('records').delete().eq('collection',c).eq('id',id));
+    if(this.db) return this.db.doc(c+'/'+id).delete();
+    const o=this._lread(c); delete o[id]; this._lwrite(c,o);
+  }
+};
+
+/* ---------- state ---------- */
+const S = { child:null, childId:null, newChild:false, justCreated:false, children:[], allSessions:[], allEvents:[], sessions:[], events:[], sources:[], view:'files', reviewFilter:{session:'all',beh:'all',status:'all'}, ioaSession:null, reportStart:null, includePending:false };
+async function loadAll(){
+  const [m, ch, se, ev, so] = await Promise.all([Store.list('meta'), Store.list('children'), Store.list('sessions'), Store.list('events'), Store.list('sources')]);
+  S.children = ch.sort((a,b)=>(+a.fileNo||0)-(+b.fileNo||0));
+  // earlier versions kept one child in meta/child and sessions without a file: move them into file 0001
+  const orphan = se.filter(x=>!x.childId), legacy = m.find(x=>x.id==='child');
+  if(orphan.length || (legacy && legacy.code && !S.children.some(c=>c.legacy))){
+    let target = S.children.find(c=>c.legacy);
+    if(!target){ const id='c-'+uid(); const d={...blankChild(), ...(legacy||{}), fileNo:nextFileNo(), legacy:true, createdAt:Date.now()}; delete d.id;
+      if(!d.code && orphan.some(x=>x.example)) d.code='مثال تجريبي';
+      await Store.set('children', id, d); target={id,...d}; S.children.push(target); }
+    for(const x of orphan){ await Store.update('sessions', x.id, {childId:target.id}); x.childId=target.id; }
+  }
+  S.allSessions = se.sort((a,b)=>(b.date||'').localeCompare(a.date||'') || (b.createdAt||0)-(a.createdAt||0));
+  S.allEvents = ev.sort((a,b)=>a.start-b.start);
+  S.sources = so.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  applyChild();
+}
+function applyChild(){
+  S.child = S.children.find(c=>c.id===S.childId) || null;
+  if(!S.child) S.childId=null;
+  S.sessions = S.allSessions.filter(x=>x.childId && x.childId===S.childId);
+  const ids = new Set(S.sessions.map(x=>x.id));
+  S.events = S.allEvents.filter(e=>ids.has(e.sessionId));
+}
+function openChild(id){
+  S.childId=id; S.newChild=false; S.justCreated=false; S.ioaSession=null; S.reviewFilter={session:'all',beh:'all',status:'all'};
+  try{ localStorage.setItem('bcba:lastChild', id); }catch(e){}
+  applyChild(); go('home');
+}
+const sessionById = id => S.sessions.find(s=>s.id===id);
+const evOf = (sid, b) => S.events.filter(e=>e.sessionId===sid && (!b || e.behavior===b));
+const evCount = e => e.kind==='event' ? (e.count||1) : 0;
+
+/* ---------- nav ---------- */
+function renderNav(){
+  const pending = S.events.filter(e=>e.kind==='event' && e.status==='pending').length;
+  const cur = S.child? `<div class="cur-file"><span>الملف المفتوح</span><b class="num">${fmtFile(S.child.fileNo)}</b><span>${esc(S.child.code)||'بدون رمز'}</span></div>` : `<div class="cur-file none"><span>لم يُفتح ملف</span></div>`;
+  $('#nav').innerHTML = VIEWS.map(([k,l],i)=>
+    (k==='home' ? '<div class="sep"></div>'+cur : k==='behaviors' ? '<div class="sep"></div>' : '') +
+    `<button data-go="${k}" ${S.view===k?'aria-current="page"':''} ${CHILD_VIEWS.includes(k)&&!S.child?'class="off"':''}><span class="ix">${String(i+1).padStart(2,'0')}</span>${l}${k==='review'&&pending?`<span class="badge-count">${pending}</span>`:''}</button>`).join('');
+  const chip=$('#storeChip');
+  if(Store.mode==='cloud' && Store.user) $('#nav').insertAdjacentHTML('beforeend','<div class="sep"></div><button id="logoutBtn"><span class="ix"></span>تسجيل الخروج</button>');
+  chip.className='store-chip'+(Store.mode==='db'||Store.mode==='cloud'?' shared':'');
+  if(Store.mode==='cloud'){ chip.querySelector('span').textContent = Store.user? `قاعدة البيانات المشتركة · ${Store.user.email}` : 'قاعدة البيانات المشتركة · سجّلي الدخول'; return; }
+  if(Store.cloudError){ chip.querySelector('span').textContent = Store.cloudError; return; }
+  chip.querySelector('span').textContent = Store.mode==='db' ? 'محفوظ في المساحة المشتركة لهذا الموقع: تراه لمى والأخصائية.' : Store.mode==='local' ? 'البيانات محفوظة في هذا الجهاز والمتصفح فقط. لنقلها: تصدير JSON ثم استيراده على الجهاز الآخر.' : 'بلا حفظ: البيانات تضيع عند إغلاق الصفحة.';
+}
+document.addEventListener('click', e=>{
+  const g=e.target.closest('[data-go]'); if(g){ go(g.dataset.go); }
+});
+async function go(v){ if(S.view==='session' && v!=='session') stopCamera(); S.view=v; try{ history.replaceState(null,'','#'+v); }catch(e){} if(Store.mode==='cloud' && Store.user && v!=='session'){ try{ await loadAll(); }catch(e){ toast('تعذّر تحديث البيانات: '+e.message); } } render(); window.scrollTo({top:0}); }
+document.addEventListener('click', async e=>{ if(!e.target.closest('#logoutBtn')) return; try{ await Store.sb.auth.signOut(); }catch(err){} Store.user=null; S.sessions=[]; S.events=[]; S.sources=[]; lastView=null; render(); });
+function loginHTML(){ return `<div class="head"><div class="t"><span class="eyebrow">دخول الفريق</span><h1>مساعد BCBA الذكي</h1><p class="lead">بيانات الأطفال محمية: لا يدخل إلا من أنشأت له المشرفة حسابًا.</p></div></div>
+  <form class="sheet stack" id="loginForm" style="max-width:420px">
+    <label class="f">البريد الإلكتروني<input type="text" id="lg_email" autocomplete="username" inputmode="email" dir="ltr" required></label>
+    <label class="f">كلمة المرور<input type="password" id="lg_pass" autocomplete="current-password" dir="ltr" required style="background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:7px 10px;color:var(--ink);width:100%"></label>
+    <div class="row"><button class="btn primary" type="submit" id="lg_btn">دخول</button><span class="small muted" id="lg_msg"></span></div>
+  </form>`; }
+function bindLogin(){ $('#loginForm').addEventListener('submit', async e=>{ e.preventDefault(); const b=$('#lg_btn'), m=$('#lg_msg'); b.disabled=true; m.textContent='جارٍ الدخول…';
+  const {data,error}=await Store.sb.auth.signInWithPassword({email:$('#lg_email').value.trim(), password:$('#lg_pass').value});
+  if(error){ m.textContent= /invalid/i.test(error.message)? 'البريد أو كلمة المرور غير صحيحة.' : 'تعذّر الدخول: '+error.message; b.disabled=false; return; }
+  Store.user=data.user; try{ await loadAll(); }catch(err){ toast('تعذّر قراءة البيانات: '+err.message); } lastView=null; render(); }); }
+
+/* ---------- views ---------- */
+let lastView=null;
+function render(){
+  if(Store.mode==='cloud' && !Store.user){ renderNav(); $('#views').innerHTML=loginHTML(); lastView='login'; bindLogin(); return; }
+  renderNav();
+  const box=$('#views');
+  if(CHILD_VIEWS.includes(S.view) && !S.child && !(S.view==='child' && S.newChild)){ if(S.view!=='files') toast('افتحي ملف طفل أولًا'); S.view='files'; renderNav(); }
+  const fn = {files:vFiles, home:vHome, child:vChild, behaviors:vBehaviors, session:vSession, review:vReview, ioa:vIoa, report:vReport, sources:vSources, method:vMethod}[S.view] || vHome;
+  if(S.view==='session' && lastView==='session' && $('#sessionRoot')) return; // keep live session DOM intact
+  lastView=S.view;
+  box.innerHTML = `<div id="vroot" class="stack" style="gap:22px">${fn()}</div>`;
+  (afterRender[S.view]||(()=>{}))();
+}
+const afterRender = {};
+
+function headBlock(eyebrow, title, lead, actions=''){
+  return `<div class="head"><div class="t"><span class="eyebrow">${eyebrow}</span><h1>${title}</h1>${lead?`<p class="lead">${lead}</p>`:''}</div>${actions?`<div class="row">${actions}</div>`:''}</div>`;
+}
+
+/* FILES */
+function vFiles(){
+  let last=null; try{ last=localStorage.getItem('bcba:lastChild'); }catch(e){}
+  const lastC = S.children.find(c=>c.id===last);
+  return `
+  ${headBlock('ملفات الأطفال','ادخلي برقم ملف الطفل','لكل طفل ملف برقم ثابت. أنشئي ملف الطفل أولًا وسجّلي معلوماته، ثم افتحيه وابدئي الرصد. كل الجلسات والتقارير تُحفظ داخل ملفه.', `<button class="btn primary" id="newFile">ملف جديد</button>`)}
+  <form class="sheet row" id="openForm" style="align-items:flex-end">
+    <label class="f" style="flex:1 1 180px">رقم الملف<input type="text" id="openNo" inputmode="numeric" autocomplete="off" dir="ltr" placeholder="0001" class="num" style="text-align:left;font-size:1.1rem"></label>
+    <button class="btn primary" type="submit">فتح الملف</button>
+    ${lastC? `<button class="btn" type="button" data-open="${lastC.id}">آخر ملف فتحتيه: <span class="num">${fmtFile(lastC.fileNo)}</span></button>`:''}
+    <span class="small" id="openMsg" style="color:var(--bad);flex-basis:100%" role="alert"></span>
+  </form>
+  <div class="sheet flush"><div class="tbl-wrap">
+  ${S.children.length? `<table class="cards"><thead><tr><th>رقم الملف</th><th>رمز الطفل</th><th>العمر</th><th>الجلسات</th><th>آخر جلسة</th><th>الموافقات</th><th></th></tr></thead><tbody>
+  ${S.children.map(c=>{ const ss=S.allSessions.filter(x=>x.childId===c.id); const lastD=ss.map(x=>x.date).sort().pop(); const ok=c.kind==='volunteer'|| (c.consentGuardian&&c.consentAssent&&c.consentSpecialist); return `<tr>
+    <td data-l="رقم الملف"><span class="num" style="font-weight:600;font-size:1.05rem">${fmtFile(c.fileNo)}</span></td>
+    <td data-l="رمز الطفل">${esc(c.code)||'—'}${c.kind==='volunteer'?' <span class="pill p-undet">متطوع للتجربة</span>':''}</td>
+    <td data-l="العمر"><span class="num">${esc(c.age)||'—'}</span></td>
+    <td data-l="الجلسات"><span class="num">${ss.length}</span></td>
+    <td data-l="آخر جلسة"><span class="num">${lastD||'—'}</span></td>
+    <td data-l="الموافقات">${ok?'<span class="pill p-approved">مكتملة</span>':'<span class="pill p-pending">ناقصة</span>'}</td>
+    <td><button class="btn sm primary" type="button" data-open="${c.id}">فتح الملف</button></td></tr>`; }).join('')}
+  </tbody></table>` : `<div class="stack" style="padding:24px"><p>لا توجد ملفات بعد.</p><p class="muted small">اضغطي «ملف جديد»، سجّلي معلومات الطفل، ويعطيه النظام رقم ملف تلقائيًا.</p></div>`}
+  </div></div>`;
+}
+afterRender.files = ()=>{
+  $('#newFile').addEventListener('click', ()=>{ S.childId=null; S.newChild=true; S.justCreated=false; applyChild(); go('child'); });
+  $('#openForm').addEventListener('submit', e=>{ e.preventDefault();
+    const raw=$('#openNo').value.trim().replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g,'');
+    const c = raw && S.children.find(x=>+x.fileNo===+raw);
+    if(!c){ $('#openMsg').textContent = raw? `لا يوجد ملف برقم ${fmtFile(raw)}. تأكدي من الرقم أو أنشئي ملفًا جديدًا.` : 'اكتبي رقم الملف.'; return; }
+    openChild(c.id); });
+  $('#vroot').addEventListener('click', e=>{ const b=e.target.closest('[data-open]'); if(b) openChild(b.dataset.open); });
+};
+
+/* HOME */
+function vHome(){
+  const c=S.child, ev=S.events.filter(e=>e.kind==='event');
+  const pending=ev.filter(e=>e.status==='pending').length;
+  const obs=sum(S.sessions.map(s=>s.duration||0));
+  const ioaVals=S.sessions.map(s=>sessionIOA(s)).filter(x=>x.overall!=null);
+  const lastIoa=ioaVals.length? ioaVals[0].overall : null;
+  const consentOk = c.kind==='volunteer' || (c.consentGuardian && c.consentAssent && c.consentSpecialist);
+  const counts = Object.fromEntries(BKEYS.map(b=>[b, sum(ev.filter(e=>e.behavior===b && e.status==='approved').map(evCount))]));
+  return `
+  ${headBlock(`لوحة الطفل · ملف رقم ${fmtFile(c.fileNo)}`, c.code? `المشارك ${esc(c.code)}` : `ملف ${fmtFile(c.fileNo)}`, 'نظام يرصد ثلاث سلوكيات معرّفة تشغيليًا من فيديو أو كاميرا داخل جهازك، ويقترح أحداثًا يعتمدها الأخصائي قبل دخولها التقرير.',
+    `<label class="btn" for="imp_file" style="cursor:pointer">استيراد بيانات</label><input type="file" id="imp_file" accept="application/json,.json" hidden><button class="btn primary" data-go="session">ابدأ جلسة رصد</button>`)}
+  ${consentOk? '' : `<div class="notice warn">لم تُسجَّل كل الموافقات بعد (ولي الأمر، قبول الطفل، الأخصائية). سجّليها في <button class="btn sm ghost" data-go="child">ملف الطفل</button> قبل أي رصد لطفل حقيقي.</div>`}
+  <div class="sheet flush"><div class="grid g4">
+    <div class="kpi"><span class="v num">${S.sessions.length}</span><span class="k">جلسات رصد</span></div>
+    <div class="kpi"><span class="v">${fmtDur(obs)}</span><span class="k">زمن الملاحظة</span></div>
+    <div class="kpi ${pending?'attn':''}"><span class="v num">${pending}</span><span class="k">أحداث تنتظر المراجعة</span></div>
+    <div class="kpi"><span class="v num">${pct(lastIoa)}</span><span class="k">آخر اتفاق مع الأخصائية (IOA)</span></div>
+  </div></div>
+  <div class="grid g3">
+    ${BKEYS.map(b=>`<div class="counter ${BEH[b].cls}"><span class="lbl">${BEH[b].name}</span><div class="tally">${tallySVG(counts[b], `var(${BEH[b].varc})`)}</div><span class="small muted">${counts[b]} مرة معتمدة في كل الجلسات</span></div>`).join('')}
+  </div>
+  <div class="sheet stack">
+    <div class="row" style="justify-content:space-between"><h2>الجلسات</h2><button class="btn sm" data-go="review">مراجعة الأحداث</button></div>
+    ${S.sessions.length? `<div class="tbl-wrap"><table><thead><tr><th>التاريخ</th><th>الجلسة</th><th>المدة</th>${BKEYS.map(b=>`<th>${BEH[b].name}</th>`).join('')}<th>تنتظر</th><th></th></tr></thead><tbody>
+    ${S.sessions.map(s=>{ const e=evOf(s.id).filter(x=>x.kind==='event'); return `<tr>
+      <td class="num">${esc(s.date)}</td><td>${esc(s.label||'جلسة')}${s.example?' <span class="pill p-undet">مثال</span>':''}</td><td>${fmtDur(s.duration)}</td>
+      ${BKEYS.map(b=>`<td class="num">${sum(e.filter(x=>x.behavior===b).map(evCount))}</td>`).join('')}
+      <td class="num">${e.filter(x=>x.status==='pending').length}</td>
+      <td><button class="btn sm ghost" data-del-session="${s.id}">حذف</button></td></tr>`; }).join('')}
+    </tbody></table></div>` : `<p class="muted">لا توجد جلسات بعد. ابدئي بجلسة رصد من فيديو مسجّل.</p>`}
+  </div>`;
+}
+afterRender.home = ()=>{
+  $('#vroot').addEventListener('click', delSessionHandler);
+  $('#imp_file').addEventListener('change', importData);
+};
+async function importData(e){
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  let d; try{ d=JSON.parse(await f.text()); }catch(err){ toast('الملف ليس JSON صالحًا'); return; }
+  if(!d || !Array.isArray(d.sessions) || !Array.isArray(d.events)){ toast('هذا ليس ملف بيانات من مساعد BCBA'); return; }
+  let ns=0, ne=0, nr=0;
+  try{
+    let cid=S.childId;
+    if(d.child && d.child.id){ if(!S.children.some(x=>x.id===d.child.id)){ const c={...d.child}; if(S.children.some(x=>+x.fileNo===+c.fileNo)) c.fileNo=nextFileNo(); await Store.set('children',c.id,c); S.children.push(c); } cid=d.child.id; }
+    if(!cid){ toast('افتحي ملف الطفل أولًا ثم استوردي'); return; }
+    d.sessions.forEach(x=>{ if(!x.childId) x.childId=cid; });
+    for(const s of d.sessions){ if(!s.id) continue; if(!sessionById(s.id)) ns++; await Store.set('sessions',s.id,s); }
+    for(const ev of d.events){ if(!ev.id||!ev.sessionId) continue; if(!S.events.some(x=>x.id===ev.id)) ne++; await Store.set('events',ev.id,ev); }
+    for(const r of (d.sources||[])){ if(!r.id) continue; if(!S.sources.some(x=>x.id===r.id)) nr++; await Store.set('sources',r.id,r); }
+  }catch(err){ toast('تعذّر الاستيراد: '+(err.message||err)); return; }
+  await loadAll(); render(); lastView=null; S.childId=cid; applyChild(); render(); toast(`استُورد إلى ملف ${fmtFile(S.child?.fileNo)}: جلسات جديدة ${ns}، أحداث ${ne}، مصادر ${nr}`);
+}
+async function delSessionHandler(e){
+  const b=e.target.closest('[data-del-session]'); if(!b) return;
+  if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='تأكيد الحذف'; b.classList.add('danger'); setTimeout(()=>{ if(b.isConnected){ b.dataset.armed=''; b.textContent='حذف'; b.classList.remove('danger'); } },3000); return; }
+  const id=b.dataset.delSession;
+  try{ for(const ev of evOf(id)) await Store.del('events',ev.id); await Store.del('sessions',id); }catch(err){ toast('تعذّر الحذف: '+(err.message||err.code)); return; }
+  await loadAll(); render(); toast('حُذفت الجلسة وأحداثها');
+}
+
+/* CHILD */
+function vChild(){
+  const isNew = S.newChild || !S.child; const c = isNew? blankChild() : S.child;
+  const no = isNew? nextFileNo() : c.fileNo;
+  return `
+  ${headBlock(isNew? 'ملف جديد' : 'ملف الطفل', isNew? 'تسجيل معلومات الطفل' : `ملف رقم <span class="num">${fmtFile(no)}</span>`, isNew? `عند الحفظ يأخذ الطفل رقم الملف <b class="num">${fmtFile(no)}</b>، وتدخلين به كل مرة. استخدمي رمزًا بدل الاسم الحقيقي؛ لا يُحفظ اسم الطفل ولا صورته.` : 'استخدمي رمزًا بدل الاسم الحقيقي. لا يُحفظ اسم الطفل ولا صورته في النظام.', isNew? '' : `<button class="btn primary" data-go="session">ابدأ الرصد</button>`)}
+  ${S.justCreated? `<div class="sheet stack" style="border-color:var(--good)"><span class="small muted">أُنشئ الملف. احفظي رقمه:</span><span class="fileno">${fmtFile(no)}</span><div class="row"><button class="btn primary" data-go="session">ابدأ الرصد الآن</button><button class="btn" data-go="files">رجوع للملفات</button></div></div>` : ''}
+  <form class="sheet stack" id="childForm">
+    <div class="row" role="radiogroup" aria-label="نوع الملف" style="gap:18px">
+      <label class="check"><input type="radio" name="c_kind" value="child" ${c.kind!=='volunteer'?'checked':''}> طفل</label>
+      <label class="check"><input type="radio" name="c_kind" value="volunteer" ${c.kind==='volunteer'?'checked':''}> متطوع بالغ لاختبار النظام</label>
+    </div>
+    <div class="grid g3">
+      <label class="f">رمز المشارك<input type="text" id="c_code" value="${esc(c.code)}" placeholder="مثل: ط-01"></label>
+      <label class="f">العمر (سنوات)<input type="number" id="c_age" min="1" max="18" value="${esc(c.age)}"></label>
+      <label class="f">مكان الكاميرا<input type="text" id="c_setting" value="${esc(c.setting)}" placeholder="مثل: غرفة الألعاب، الدور الأول"></label>
+    </div>
+    <label class="f">أهداف الأخصائي (هدف في كل سطر)<textarea id="c_goals" placeholder="مثال: خفض رفع اليد المتكرر أثناء اللعب الجماعي">${esc(c.goals)}</textarea></label>
+    <label class="f">تقرير الأخصائي عن حالة الطفل<textarea id="c_report" style="min-height:140px">${esc(c.report)}</textarea></label>
+    <hr>
+    <h3>الموافقات (شرط قبل الرصد)</h3>
+    <label class="check"><input type="checkbox" id="c_g" ${c.consentGuardian?'checked':''}> موافقة ولي الأمر المستنيرة المكتوبة على الرصد واستخدام البيانات في البحث.</label>
+    <label class="check"><input type="checkbox" id="c_a" ${c.consentAssent?'checked':''}> قبول الطفل (Assent) بما يناسب قدرته، مع إيقاف الرصد عند انزعاجه.</label>
+    <label class="check"><input type="checkbox" id="c_s" ${c.consentSpecialist?'checked':''}> موافقة الأخصائية المشرفة على الأهداف والسلوكيات والمصادر.</label>
+    <details class="stack"><summary class="small" style="cursor:pointer;font-weight:600">نموذج موافقة ولي الأمر (نص جاهز للنسخ)</summary>
+      <textarea id="consentText" class="out" readonly style="min-height:300px">${esc(CONSENT)}</textarea>
+      <div class="row"><button class="btn sm" type="button" id="copyConsent">نسخ النموذج</button></div>
+    </details>
+    <div class="row"><button class="btn primary" type="submit">${isNew? 'حفظ وإنشاء رقم الملف' : 'حفظ التعديلات'}</button>${isNew? '<button class="btn ghost" type="button" data-go="files">إلغاء</button>':''}<span class="small muted" id="childMsg"></span></div>
+  </form>`;
+}
+afterRender.child = ()=>{
+  $('#copyConsent').addEventListener('click', ()=>copyText(CONSENT, $('#consentText')));
+  $('#childForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const d={ kind:(document.querySelector('input[name=c_kind]:checked')||{}).value||'child', code:$('#c_code').value.trim(), age:$('#c_age').value, setting:$('#c_setting').value.trim(), goals:$('#c_goals').value.trim(), report:$('#c_report').value.trim(), consentGuardian:$('#c_g').checked, consentAssent:$('#c_a').checked, consentSpecialist:$('#c_s').checked };
+    try{
+      if(S.newChild || !S.child){
+        const id='c-'+uid(); const rec={...d, fileNo:nextFileNo(), createdAt:Date.now()};
+        await Store.set('children', id, rec); S.children.push({id,...rec});
+        S.childId=id; S.newChild=false; S.justCreated=true; try{ localStorage.setItem('bcba:lastChild', id); }catch(e){}
+        applyChild(); lastView=null; render(); window.scrollTo({top:0}); toast('أُنشئ الملف رقم '+fmtFile(rec.fileNo));
+      } else {
+        const rec={...S.child, ...d}; delete rec.id; await Store.set('children', S.childId, rec);
+        Object.assign(S.child, d); S.justCreated=false; toast('حُفظ ملف الطفل'); renderNav();
+      }
+    }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); }
+  });
+};
+
+/* BEHAVIORS */
+function vBehaviors(){
+  return `
+  ${headBlock('التعريفات التشغيلية','السلوكيات المستهدفة','تعريفات الأخصائية كما وصلت، وبجانب كل تعريف القاعدة التي يطبّقها النظام على نقاط الجسم. البداية بعدّ المرات فقط، والمدة تُضاف لاحقًا عند الحاجة.')}
+  <div class="grid g3">
+  ${BKEYS.map(b=>{ const x=BEH[b]; return `<article class="sheet beh-card ${x.cls}"><div class="inner">
+    <h2>${x.name}</h2>
+    <dl class="def">
+      <dt>التعريف</dt><dd>${x.def}</dd>
+      <dt>البداية</dt><dd>${x.start}</dd>
+      <dt>النهاية</dt><dd>${x.end}</dd>
+      <dt>قاعدة العدّ</dt><dd>${x.rule}</dd>
+      <dt>بُعد القياس</dt><dd>عدد المرات فقط في هذه المرحلة. قياس المدة يُضاف لاحقًا عند الحاجة.</dd>
+    </dl>
+    <hr>
+    <div class="stack"><span class="eyebrow">كيف يرصده النظام</span><p class="small">${x.tech}</p></div>
+  </div></article>`; }).join('')}
+  </div>
+  <div class="notice">إذا كانت الحركة محجوبة أو خارج إطار الكاميرا لأكثر من ثانية، تُسجَّل الفترة «غير قابلة للتحديد» بدل تخمينها، وتظهر في المراجعة والتقرير.</div>`;
+}
+
+/* SESSION */
+function consentBlock(){ const c=S.child; if(!c) return 'افتحي ملف طفل أولًا.'; if(c.kind==='volunteer') return ''; return c.consentGuardian? '' : 'لا يبدأ الرصد قبل تسجيل موافقة ولي الأمر في ملف الطفل.'; }
+let pose=null, poseLoading=null, lastResults=null, run=null, camStream=null, wakeLock=null;
+window.addEventListener('beforeunload', e=>{ if(run && (run.active || !$('#saveBox')?.hidden)){ e.preventDefault(); e.returnValue=''; } });
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('تعذّر تحميل '+src)); document.head.appendChild(s); }); }
+function loadPose(){
+  if(poseLoading) return poseLoading;
+  poseLoading = (async()=>{
+    await loadScript('mp/pose.js');
+    const p = new window.Pose({locateFile:(f)=>'mp/'+(/\.(js|wasm)$/.test(f)? f : f+'.wasm')}); // binary model files are served under a .wasm name
+    p.setOptions({modelComplexity:0, smoothLandmarks:true, enableSegmentation:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
+    p.onResults(r=>{ lastResults=r; });
+    await p.initialize();
+    pose=p; return p;
+  })();
+  poseLoading.catch(()=>{ poseLoading=null; });
+  return poseLoading;
+}
+const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[15,19],[16,20],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+
+class Detector{
+  constructor(W,H){ this.W=W; this.H=H; this.V=0.5; this.events=[]; this.clapTimes=[];
+    this.r={side:{L:false,R:false}, on:false, cand:0, off:0, start:0, sides:new Set(), key:null};
+    this.c={touch:false, tTouch:0, bout:null, lastSep:-9};
+    this.s={state:'unknown', stCand:null, stFrames:0, leaveSeat:null, standSince:null};
+    this.u={raise:null, clap:null, stand:null}; this.t=0; }
+  P(lm,i){ const p=lm[i]; return {x:p.x*this.W, y:p.y*this.H, v:p.visibility??1}; }
+  compact(lm){ const a=[]; for(const p of lm){ a.push(+(p.x.toFixed(3)), +((p.visibility??1)<this.V? -1 : p.y.toFixed(3))); } return a; }
+  undet(b, ok, t){
+    if(!ok){ if(this.u[b]==null) this.u[b]=t; }
+    else if(this.u[b]!=null){ if(t-this.u[b]>=1) this.events.push({behavior:b, kind:'undet', start:this.u[b], end:t}); this.u[b]=null; }
+  }
+  update(t, lm){
+    this.t=t;
+    if(!lm){ BKEYS.forEach(b=>this.undet(b,false,t)); return; }
+    const P=i=>this.P(lm,i), V=this.V;
+    const sL=P(11), sR=P(12); const sw=Math.max(8, Math.hypot(sL.x-sR.x, sL.y-sR.y));
+    /* raise hand */
+    let anyVis=false;
+    for(const [si,wi,k] of [[11,15,'L'],[12,16,'R']]){
+      const S_=P(si), W_=P(wi); if(S_.v<V||W_.v<V) continue; anyVis=true;
+      const st=this.r.side;
+      if(!st[k] && W_.y < S_.y - 0.08*sw) st[k]=true;
+      else if(st[k] && W_.y >= S_.y) st[k]=false;
+    }
+    this.undet('raise', anyVis, t);
+    if(!anyVis && this.r.on) this.r.hid=true;
+    const up = this.r.side.L || this.r.side.R;
+    const r=this.r;
+    if(!r.on){ if(up){ if(r.cand===0) r.start=t; r.cand++; if(r.cand>=2){ r.on=true; r.hid=false; r.sides=new Set(); r.key=this.compact(lm); r.off=0; } } else r.cand=0; }
+    if(r.on){ if(this.r.side.L) r.sides.add('L'); if(this.r.side.R) r.sides.add('R');
+      if(!up){ if(r.off===0) r.offT=t; r.off++; if(r.off>=2){ r.on=false; r.cand=0;
+        const both=r.sides.size>1; this.events.push({behavior:'raise', kind:'event', start:r.start, end:r.offT, count:1,
+          detail: (both? 'باليدين' : (r.sides.has('L')? 'يد واحدة (اليسرى)' : 'يد واحدة (اليمنى)')) + (r.hid? ' · اليد اختفت عن الكاميرا أثناء الرفع، تحتاج تحقق' : ''), key:r.key}); } }
+      else r.off=0; }
+    /* clap */
+    const wL=P(15), wR=P(16), iL=P(19), iR=P(20);
+    const clapOk = wL.v>=V && wR.v>=V && sL.v>=V && sR.v>=V;
+    this.undet('clap', clapOk, t);
+    const c=this.c;
+    if(clapOk){
+      const hL={x:(wL.x+(iL.v>=V?iL.x:wL.x))/2, y:(wL.y+(iL.v>=V?iL.y:wL.y))/2};
+      const hR={x:(wR.x+(iR.v>=V?iR.x:wR.x))/2, y:(wR.y+(iR.v>=V?iR.y:wR.y))/2};
+      const d=Math.hypot(hL.x-hR.x, hL.y-hR.y)/sw;
+      if(!c.touch && d<0.45){ c.touch=true; c.tTouch=t; c.keyTouch=this.compact(lm); }
+      else if(c.touch && d>0.75){ c.touch=false; this.clapTimes.push(c.tTouch);
+        if(c.bout && c.tTouch - c.lastSep <= 1.5){ c.bout.count++; c.bout.times.push(+c.tTouch.toFixed(2)); c.bout.end=t; }
+        else { this.closeBout(); c.bout={behavior:'clap', kind:'event', start:c.tTouch, end:t, count:1, times:[+c.tTouch.toFixed(2)], key:c.keyTouch}; }
+        c.lastSep=t; }
+    }
+    if(c.bout && !c.touch && t-c.lastSep>1.5) this.closeBout();
+    /* sit to stand */
+    const sides=[[23,25,27],[24,26,28]].map(([h,k,a])=>({h:P(h),k:P(k),a:P(a)})).filter(s=>s.h.v>=V&&s.k.v>=V&&s.a.v>=V);
+    this.undet('stand', sides.length>0 && sL.v>=V, t);
+    if(sides.length){
+      const ang = s => { const v1={x:s.h.x-s.k.x,y:s.h.y-s.k.y}, v2={x:s.a.x-s.k.x,y:s.a.y-s.k.y}; const cos=(v1.x*v2.x+v1.y*v2.y)/(Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y)||1); return Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI; };
+      const angle = sum(sides.map(ang))/sides.length;
+      const hipY = sum(sides.map(s=>s.h.y))/sides.length, kneeY = sum(sides.map(s=>s.k.y))/sides.length;
+      const torso = Math.max(8, Math.abs(hipY - (sL.y+sR.y)/2));
+      let pos = 'mid';
+      if(angle<=120 || (kneeY-hipY) < 0.3*torso) pos='seated';
+      else if(angle>=160 && (kneeY-hipY)>=0.5*torso) pos='standing';
+      const s=this.s;
+      if(pos==='seated'){ s.state='seated'; s.leaveSeat=null; s.standSince=null; }
+      else if(pos==='mid'){ if(s.state==='seated' && s.leaveSeat==null) s.leaveSeat=t; s.standSince=null; }
+      else if(pos==='standing'){
+        if(s.state==='seated' || (s.state==='rising')){ if(s.leaveSeat==null) s.leaveSeat=t; if(s.standSince==null) s.standSince=t; s.state='rising';
+          if(t-s.standSince>=0.3){ this.events.push({behavior:'stand', kind:'event', start:s.leaveSeat, end:s.standSince, count:1, detail:'وقوف كامل', key:this.compact(lm)}); s.state='standing'; s.leaveSeat=null; } }
+        else if(s.state==='unknown') s.state='standing';
+      }
+    }
+  }
+  closeBout(){ const c=this.c; if(c.bout){ c.bout.detail = c.bout.count===1? 'تصفيقة واحدة' : `${c.bout.count} تصفيقات متتابعة`; this.events.push(c.bout); c.bout=null; } }
+  finish(t){
+    if(this.r.on){ const r=this.r; this.events.push({behavior:'raise', kind:'event', start:r.start, end:t, count:1, detail:(r.sides.size>1?'باليدين':'يد واحدة')+' · انتهى الفيديو واليد مرفوعة', key:r.key}); r.on=false; }
+    this.closeBout();
+    BKEYS.forEach(b=>{ if(this.u[b]!=null && t-this.u[b]>=1) this.events.push({behavior:b, kind:'undet', start:this.u[b], end:t}); this.u[b]=null; });
+    this.events.sort((a,b)=>a.start-b.start);
+  }
+  counts(){ const o={raise:0,clap:0,stand:0}; for(const e of this.events) if(e.kind==='event') o[e.behavior]+=e.count||1; if(this.c.bout) o.clap+=this.c.bout.count; return o; }
+}
+
+function vSession(){
+  return `<div id="sessionRoot" class="stack" style="gap:22px">
+  ${headBlock(`جلسة رصد · ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+esc(S.child.code):''}`,'رصد من فيديو أو كاميرا','ارفعي فيديو مسجّلًا لجلسة الطفل أو لمتطوع يؤدي الحركات الثلاث. التحليل يجري داخل جهازك إطارًا بإطار، ثم تُحفظ الأحداث كنص فقط.')}
+  <div class="privacy"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>الفيديو لا يُرفع ولا يُحفظ. يُحلَّل في هذا المتصفح، ويبقى من الجلسة: وقت كل حدث، ونوعه، والهيكل العظمي لحظة الحدث (نقاط بلا صورة) ليتحقق منه الأخصائي.</span></div>
+  <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);align-items:start" id="sessGrid">
+    <div class="stack">
+      <div class="stage" id="stage">
+        <video id="vid" playsinline muted></video><canvas id="ovl"></canvas>
+        <div class="empty" id="stageEmpty"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M12 14l-3 6M12 14l3 6M7 9l5 1 5-1"/></svg><span>اختاري فيديو للتحليل</span></div>
+      </div>
+      <div class="progress"><i id="prog"></i></div>
+      <div class="status-line" id="status">النموذج يُحمَّل عند أول تحليل (نحو 18 ميغابايت مرة واحدة).</div>
+      <svg class="timeline" id="tl" viewBox="0 0 720 100" direction="ltr" role="img" aria-label="خط زمني للأحداث المرصودة"></svg>
+    </div>
+    <div class="stack">
+      <div class="sheet stack">
+        <label class="f">عنوان الجلسة<input type="text" id="s_label" placeholder="مثل: جلسة لعب حر – غرفة الألعاب"></label>
+        <label class="f">التاريخ<input type="date" id="s_date" value="${today()}"></label>
+        <label class="f">الكاميرا<select id="s_face"><option value="environment">الخلفية (لتصوير الطفل)</option><option value="user">الأمامية</option></select></label>
+        <label class="f">معدل التحليل<select id="s_fps"><option value="10">10 إطارات/ث (أسرع)</option><option value="15" selected>15 إطارًا/ث (موصى به)</option><option value="25">25 إطارًا/ث (أدق للتصفيق)</option></select></label>
+        <label class="f">مدة الرصد بالكاميرا<select id="s_limit"><option value="60">دقيقة</option><option value="120" selected>دقيقتان</option><option value="180">3 دقائق</option><option value="300">5 دقائق</option><option value="600">10 دقائق</option><option value="0">بدون حد (إيقاف يدوي)</option></select></label>
+        <div class="row">
+          <label class="btn primary" for="s_file" style="cursor:pointer">اختيار فيديو</label>
+          <input type="file" id="s_file" accept="video/*" hidden>
+          <button class="btn" id="s_cam">الكاميرا المباشرة</button>
+          <button class="btn danger" id="s_stop" hidden>إيقاف</button>
+        </div>
+        <p class="small muted">عندك فيديو مسجّل؟ ارفعيه بـ«اختيار فيديو» بدل تشغيله أمام الكاميرا: يُحلَّل إطارًا إطارًا ويتوقف وحده عند نهايته. أما الكاميرا فتتوقف وحدها عند انتهاء المدة المختارة.</p>
+      </div>
+      <div class="grid g3" style="gap:8px" id="liveCounters"></div>
+      <div class="sheet stack" id="saveBox" hidden>
+        <p class="small"><b id="saveSummary"></b></p>
+        <div class="row"><button class="btn primary" id="s_save">حفظ الجلسة وإرسالها للمراجعة</button><button class="btn ghost" id="s_discard">تجاهل</button></div>
+      </div>
+    </div>
+  </div></div>`;
+}
+function renderCounters(cn){
+  $('#liveCounters').innerHTML = BKEYS.map(b=>`<div class="counter ${BEH[b].cls}" style="padding:10px 12px"><span class="lbl small">${BEH[b].name}</span><span class="n num">${cn[b]}</span></div>`).join('');
+}
+function drawTimeline(events, dur){
+  const svg=$('#tl'); if(!svg) return; dur=Math.max(dur||1,1);
+  const X = t => 10 + (t/dur)*590;
+  let s='';
+  BKEYS.forEach((b,i)=>{ const y=8+i*26;
+    s+=`<line x1="10" x2="600" y1="${y+9}" y2="${y+9}" stroke="var(--rule)" stroke-width="14"/>`;
+    for(const e of events.filter(e=>e.behavior===b)){
+      if(e.kind==='undet') s+=`<rect x="${X(e.start)}" y="${y+3}" width="${Math.max(2,X(e.end)-X(e.start))}" height="12" fill="var(--line)"/>`;
+      else s+=`<rect x="${X(e.start)}" y="${y+1}" width="${Math.max(3,X(e.end)-X(e.start))}" height="16" rx="2" fill="var(${BEH[b].varc})"/>`;
+    }
+    s+=`<text x="612" y="${y+13}" font-size="11.5" fill="var(--ink)">${BEH[b].name}</text>`;
+  });
+  s+=`<text x="10" y="94" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">0:00</text><text x="600" y="94" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Mono, monospace">${fmtT(dur)}</text>`;
+  svg.innerHTML=s;
+}
+function drawOverlay(lm, W, H){
+  const cv=$('#ovl'); if(!cv) return; cv.width=W; cv.height=H; const g=cv.getContext('2d'); g.clearRect(0,0,W,H);
+  if(!lm) return;
+  const css=getComputedStyle(document.documentElement);
+  g.lineWidth=Math.max(2,W/320); g.strokeStyle='rgba(255,255,255,.85)';
+  for(const [a,b] of CONN){ const p=lm[a], q=lm[b]; if((p.visibility??1)<.5||(q.visibility??1)<.5) continue; g.beginPath(); g.moveTo(p.x*W,p.y*H); g.lineTo(q.x*W,q.y*H); g.stroke(); }
+  const dot=(i,c)=>{ const p=lm[i]; if((p.visibility??1)<.5) return; g.fillStyle=c; g.beginPath(); g.arc(p.x*W,p.y*H,Math.max(4,W/150),0,7); g.fill(); };
+  [15,16].forEach(i=>dot(i, css.getPropertyValue('--b-clap').trim()||'#e47'));
+  [11,12].forEach(i=>dot(i, css.getPropertyValue('--b-raise').trim()||'#57f'));
+  [23,24,25,26,27,28].forEach(i=>dot(i, css.getPropertyValue('--b-stand').trim()||'#a7e'));
+}
+function setStatus(t){ const s=$('#status'); if(s) s.textContent=t; }
+afterRender.session = ()=>{
+  renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60);
+  $('#s_file').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) analyzeFile(f); e.target.value=''; });
+  $('#s_cam').addEventListener('click', startCamera);
+  $('#s_stop').addEventListener('click', ()=>{ if(run) run.stop=true; });
+  $('#s_save').addEventListener('click', saveRun);
+  $('#s_discard').addEventListener('click', ()=>{ run=null; $('#saveBox').hidden=true; renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60); setStatus('أُلغيت النتائج.'); });
+  ensurePose().then(()=>{ if(!run) setStatus(consentBlock()? 'النموذج جاهز. '+consentBlock() : 'النموذج جاهز. اختاري فيديو أو شغّلي الكاميرا.'); }).catch(()=>{});
+};
+function seek(v,t){ return new Promise(res=>{ const h=()=>{ v.removeEventListener('seeked',h); res(); }; v.addEventListener('seeked',h); v.currentTime=t; }); }
+async function ensurePose(){
+  if(pose) return pose;
+  setStatus('جارٍ تحميل نموذج تقدير الوضعية…');
+  try{ await loadPose(); return pose; }
+  catch(err){ setStatus('تعذّر تحميل النموذج: '+(err.message||err)+'. أعيدي تحميل الصفحة وحاولي مجددًا.'); throw err; }
+}
+async function analyzeFile(file){
+  if(run && run.active) return;
+  { const cb=consentBlock(); if(cb){ setStatus(cb); toast(cb); return; } }
+  const v=$('#vid'); $('#stageEmpty').hidden=true; $('#saveBox').hidden=true;
+  const url=URL.createObjectURL(file); v.srcObject=null; v.src=url;
+  await new Promise((res,rej)=>{ v.onloadedmetadata=res; v.onerror=()=>rej(new Error('المتصفح لا يقرأ صيغة هذا الفيديو. جرّبي ملف MP4 أو WebM، أو صوّري بكاميرا الجوال بإعداد «الأكثر توافقًا».')); }).catch(err=>{ setStatus(err.message); $('#stageEmpty').hidden=false; });
+  if(!v.videoWidth) return;
+  try{ await ensurePose(); }catch(e){ return; }
+  const W=v.videoWidth, H=v.videoHeight, dur=v.duration, fps=+$('#s_fps').value, step=1/fps;
+  const det=new Detector(W,H);
+  run={active:true, stop:false, det, duration:dur, source:'video', fps, fileName:file.name};
+  $('#s_stop').hidden=false; $('#s_cam').disabled=true;
+  const t0=performance.now(); let n=0;
+  for(let t=0; t<dur && !run.stop; t+=step){
+    await seek(v,t); lastResults=null;
+    await pose.send({image:v});
+    const lm = lastResults && lastResults.poseLandmarks;
+    det.update(t, lm); n++;
+    if(n%3===0){ drawOverlay(lm,W,H); renderCounters(det.counts()); $('#prog').style.width=(t/dur*100)+'%';
+      const sp=(t/((performance.now()-t0)/1000)); setStatus(`يحلّل ${fmtT(t)} من ${fmtT(dur)} · سرعة ${sp.toFixed(1)}×`);
+      if(n%15===0) drawTimeline(det.events, dur); }
+  }
+  const endT = run.stop ? v.currentTime : dur;
+  det.finish(endT); run.duration=endT; run.active=false;
+  $('#prog').style.width='100%'; $('#s_stop').hidden=true; $('#s_cam').disabled=false;
+  finishRun();
+  URL.revokeObjectURL(url);
+}
+async function startCamera(){
+  if(run && run.active) return;
+  { const cb=consentBlock(); if(cb){ setStatus(cb); toast(cb); return; } }
+  if(!navigator.mediaDevices?.getUserMedia){ setStatus('هذا المتصفح لا يدعم الكاميرا. استخدمي Chrome أو Safari بإصدار حديث.'); return; }
+  try{ camStream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:{ideal:$('#s_face').value}}, audio:false}); }
+  catch(err){ setStatus(err.name==='NotAllowedError'? 'رُفض إذن الكاميرا. اسمحي للموقع باستخدام الكاميرا من إعدادات المتصفح (رمز القفل بجانب العنوان) ثم أعيدي المحاولة.' : err.name==='NotFoundError'? 'لا توجد كاميرا متصلة بهذا الجهاز.' : err.name==='NotReadableError'? 'الكاميرا مستخدمة في تطبيق آخر. أغلقيه ثم أعيدي المحاولة.' : 'تعذّر تشغيل الكاميرا: '+err.message); return; }
+  try{ wakeLock = await navigator.wakeLock?.request('screen'); }catch(e){ wakeLock=null; }
+  const v=$('#vid'); v.src=''; v.srcObject=camStream; await v.play(); $('#stageEmpty').hidden=true; $('#saveBox').hidden=true;
+  try{ await ensurePose(); }catch(e){ stopCamera(); return; }
+  const W=v.videoWidth, H=v.videoHeight; const det=new Detector(W,H);
+  const limit=+$('#s_limit').value||0;
+  run={active:true, stop:false, det, source:'camera', fps:null, limit}; $('#s_stop').hidden=false; $('#s_cam').disabled=true;
+  const stage=$('#stage'); const cd=document.createElement('div'); cd.className='cd'; stage.appendChild(cd);
+  for(let k=5;k>0 && !run.stop;k--){ cd.textContent=k; setStatus('يبدأ الرصد بعد '+k+' ث… خذي مكانك أمام الكاميرا والجسم كامل في الصورة'); await new Promise(r=>setTimeout(r,1000)); }
+  cd.remove();
+  const t0=performance.now(); let n=0, reachedLimit=false;
+  while(!run.stop){
+    await pose.send({image:v}); const t=(performance.now()-t0)/1000; const lm=lastResults&&lastResults.poseLandmarks;
+    if(limit && t>=limit){ reachedLimit=true; break; }
+    det.update(t,lm); drawOverlay(lm,W,H); n++;
+    if(n%5===0 || n===1){ renderCounters(det.counts()); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو`); drawTimeline(det.events, Math.max(limit||60,t)); }
+    await new Promise(r=>requestAnimationFrame(r));
+  }
+  run.reachedLimit=reachedLimit;
+  const t=Math.min((performance.now()-t0)/1000, limit||Infinity); det.finish(t); run.duration=t; run.fps=Math.round(n/t); run.active=false;
+  stopCamera(); $('#s_stop').hidden=true; $('#s_cam').disabled=false; finishRun();
+}
+function stopCamera(){ try{ wakeLock?.release(); }catch(e){} wakeLock=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } if(run && run.active && run.source==='camera') run.stop=true; }
+function finishRun(){
+  const det=run.det, cn=det.counts(); renderCounters(cn); drawTimeline(det.events, run.duration);
+  const und=det.events.filter(e=>e.kind==='undet');
+  setStatus(`${run.reachedLimit? 'انتهت المدة المحددة. ' : ''}انتهى التحليل: ${fmtDur(run.duration)}${und.length? ` · فترات غير قابلة للتحديد: ${und.length}` : ''}.`);
+  $('#saveSummary').textContent = `رُصد: ${BKEYS.map(b=>`${BEH[b].name} ${cn[b]}`).join('، ')}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
+  $('#saveBox').hidden=false;
+}
+async function saveRun(){
+  if(!run) return; const btn=$('#s_save'); btn.disabled=true;
+  const id=uid();
+  const ses={ id, childId:S.childId, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), clapTimes:run.det.clapTimes.map(x=>+x.toFixed(2)), spec:{} };
+  try{
+    await Store.set('sessions', id, ses);
+    for(const e of run.det.events){
+      const eid=uid();
+      await Store.set('events', eid, { sessionId:id, behavior:e.behavior, kind:e.kind, start:+e.start.toFixed(2), end:+e.end.toFixed(2), count:e.count||0, times:e.times||[], detail:e.detail||'', key:e.key||[], status: e.kind==='event'?'pending':'undet', context:'', note:'' });
+    }
+  }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); btn.disabled=false; return; }
+  run=null; await loadAll(); toast('حُفظت الجلسة في ملف '+fmtFile(S.child.fileNo)+'. الأحداث بانتظار المراجعة');
+  S.reviewFilter.session=id; go('review');
+}
+
+/* REVIEW */
+function stick(key){
+  if(!key || !key.length) return '<span class="muted small">—</span>';
+  const pts=[]; for(let i=0;i<key.length;i+=2) pts.push([key[i], key[i+1]]);
+  const vis=pts.filter(p=>p[1]>=0); if(vis.length<6) return '<span class="muted small">—</span>';
+  const xs=vis.map(p=>p[0]), ys=vis.map(p=>p[1]); const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const sc=Math.min(44/((x1-x0)||1), 62/((y1-y0)||1)); const ox=(56-(x1-x0)*sc)/2, oy=(70-(y1-y0)*sc)/2;
+  const T=p=>[(p[0]-x0)*sc+ox,(p[1]-y0)*sc+oy];
+  let l=''; for(const [a,b] of CONN){ const p=pts[a], q=pts[b]; if(!p||!q||p[1]<0||q[1]<0) continue; const [ax,ay]=T(p),[bx,by]=T(q); l+=`<line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}"/>`; }
+  const n=pts[0]; let h=''; if(n&&n[1]>=0){ const [hx,hy]=T(n); h=`<circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="3.5" fill="none"/>`; }
+  return `<svg width="56" height="70" viewBox="0 0 56 70" stroke="var(--ink)" stroke-width="1.6" stroke-linecap="round" role="img" aria-label="الهيكل العظمي لحظة الحدث">${l}${h}</svg>`;
+}
+function vReview(){
+  const f=S.reviewFilter;
+  let list=S.events.filter(e=>(f.session==='all'||e.sessionId===f.session)&&(f.beh==='all'||e.behavior===f.beh)&&(f.status==='all'||e.status===f.status));
+  list=list.sort((a,b)=>{ const sa=sessionById(a.sessionId), sb=sessionById(b.sessionId); return ((sb?.date||'').localeCompare(sa?.date||'')) || a.start-b.start; });
+  return `
+  ${headBlock('مراجعة الأحداث','يعتمد الأخصائي كل حدث','النظام يقترح؛ لا يدخل حدث التقرير إلا بعد اعتماده. السياق يُكتب بصيغة «بعد…» لا «بسبب…»: المطلوب وصف ما سبق السلوك دون الجزم بالسبب.')}
+  <div class="sheet row">
+    <label class="f" style="flex:2 1 200px">الجلسة<select id="f_s"><option value="all">كل الجلسات</option>${S.sessions.map(s=>`<option value="${s.id}" ${f.session===s.id?'selected':''}>${esc(s.date)} · ${esc(s.label)}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1 1 140px">السلوك<select id="f_b"><option value="all">الكل</option>${BKEYS.map(b=>`<option value="${b}" ${f.beh===b?'selected':''}>${BEH[b].name}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1 1 140px">الحالة<select id="f_st">${[['all','الكل'],['pending','مقترح'],['approved','معتمد'],['rejected','مرفوض'],['undet','غير قابل للتحديد']].map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${l}</option>`).join('')}</select></label>
+    ${list.some(e=>e.status==='pending')?`<button class="btn" id="approveAll" style="align-self:flex-end">اعتماد كل المعروض المقترح</button>`:''}
+  </div>
+  <div class="sheet flush"><div class="tbl-wrap">
+  ${list.length? `<table class="cards"><thead><tr><th>الوضعية</th><th>السلوك</th><th>الوقت</th><th>التفاصيل</th><th>العدد</th><th>ما حدث قبله (السياق)</th><th>الحالة</th><th>القرار</th></tr></thead><tbody>
+  ${list.map(e=>`<tr data-id="${e.id}">
+    <td>${e.kind==='event'?stick(e.key):''}</td>
+    <td data-l="السلوك"><span class="chip ${BEH[e.behavior].cls}">${BEH[e.behavior].name}</span></td>
+    <td data-l="الوقت"><span class="num">${fmtT(e.start)} – ${fmtT(e.end)}</span></td>
+    <td data-l="التفاصيل" class="small">${e.kind==='undet'?'الحركة محجوبة أو خارج الإطار':esc(e.detail)}</td>
+    <td data-l="العدد">${e.kind==='event'? (e.behavior==='clap'? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="عدد التصفيقات">` : `<span class="num">1</span>`) : '—'}</td>
+    <td data-l="ما حدث قبله (السياق)">${e.kind==='event'?`<input type="text" class="ctx" data-ctx value="${esc(e.context)}" placeholder="بعد…" aria-label="السياق">`:''}</td>
+    <td data-l="الحالة">${statusPill(e.status)}</td>
+    <td data-l="القرار">${e.kind==='event'?`<div class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn sm" data-act="approved">اعتماد</button><button class="btn sm ghost danger" data-act="rejected">رفض</button></div>`:''}</td>
+  </tr>`).join('')}</tbody></table>` : `<p class="muted" style="padding:20px">لا توجد أحداث بهذه التصفية.</p>`}
+  </div></div>`;
+}
+function statusPill(s){ return `<span class="pill p-${s}">${{pending:'مقترح',approved:'معتمد',rejected:'مرفوض',undet:'غير قابل للتحديد'}[s]||s}</span>`; }
+afterRender.review = ()=>{
+  const re=()=>{ S.reviewFilter={session:$('#f_s').value, beh:$('#f_b').value, status:$('#f_st').value}; render(); };
+  ['#f_s','#f_b','#f_st'].forEach(s=>$(s).addEventListener('change',re));
+  const ab=$('#approveAll'); if(ab) ab.addEventListener('click', async()=>{
+    const f=S.reviewFilter; const ids=S.events.filter(e=>e.status==='pending'&&(f.session==='all'||e.sessionId===f.session)&&(f.beh==='all'||e.behavior===f.beh)).map(e=>e.id);
+    for(const id of ids){ await saveEvent(id,{status:'approved'}); } render(); toast(`اعتُمد ${ids.length} حدثًا`);
+  });
+  $('#vroot').addEventListener('click', async ev=>{
+    const b=ev.target.closest('[data-act]'); if(!b) return; const tr=b.closest('tr'); const id=tr.dataset.id;
+    const patch={status:b.dataset.act}; const ctx=tr.querySelector('[data-ctx]'); if(ctx) patch.context=ctx.value.trim();
+    const cnt=tr.querySelector('[data-count]'); if(cnt) patch.count=Math.max(0,+cnt.value||0);
+    await saveEvent(id,patch); tr.querySelector('td[data-l="الحالة"]').innerHTML=statusPill(patch.status); renderNav();
+  });
+  $('#vroot').addEventListener('change', async ev=>{
+    const tr=ev.target.closest('tr[data-id]'); if(!tr) return;
+    if(ev.target.matches('[data-ctx]')) await saveEvent(tr.dataset.id,{context:ev.target.value.trim()});
+    if(ev.target.matches('[data-count]')) await saveEvent(tr.dataset.id,{count:Math.max(0,+ev.target.value||0)});
+  });
+};
+async function saveEvent(id,patch){
+  try{ await Store.update('events',id,patch); const e=S.events.find(x=>x.id===id); Object.assign(e,patch); }
+  catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); }
+}
+
+/* IOA */
+function matchTimes(sys, spec){
+  const used=new Array(sys.length).fill(false); let tp=0;
+  for(const t of spec){ let best=-1, bd=1e9; sys.forEach((s,i)=>{ if(!used[i]){ const d=Math.abs(s-t); if(d<=TOL && d<bd){ bd=d; best=i; } } }); if(best>=0){ used[best]=true; tp++; } }
+  return {tp, fp: sys.length-tp, fn: spec.length-tp};
+}
+function sessionIOA(s){
+  const res={}; let num=0, den=0;
+  for(const b of BKEYS){
+    const evs=evOf(s.id,b).filter(e=>e.kind==='event');
+    const sysCount=sum(evs.map(e=>e.behavior==='clap'? (e.times?.length||e.count||1) : 1));
+    const sysTimes = b==='clap' ? (s.clapTimes&&s.clapTimes.length? s.clapTimes : evs.flatMap(e=>e.times||[e.start])) : evs.map(e=>e.start);
+    const sp=(s.spec||{})[b]; const r={sysCount, sysTimes};
+    if(sp && sp.count!=null && sp.count!==''){
+      const a=+sp.count; r.specCount=a; const mx=Math.max(a,sysCount), mn=Math.min(a,sysCount);
+      r.total = mx===0? 100 : mn/mx*100; num+=mn; den+=mx;
+      const st=parseTimes(sp.times);
+      if(st.length || (sp.times||'').trim()!==''){
+        r.specTimes=st; const m=matchTimes(sysTimes, st); Object.assign(r,m);
+        r.precision = (m.tp+m.fp)? m.tp/(m.tp+m.fp)*100 : null; r.recall=(m.tp+m.fn)? m.tp/(m.tp+m.fn)*100 : null;
+        r.f1 = (r.precision!=null&&r.recall!=null&&(r.precision+r.recall))? 2*r.precision*r.recall/(r.precision+r.recall) : null;
+        const n=Math.max(1,Math.ceil((s.duration||1)/INTERVAL)); let agree=0;
+        for(let i=0;i<n;i++){ const lo=i*INTERVAL, hi=lo+INTERVAL; const a1=sysTimes.filter(t=>t>=lo&&t<hi).length, a2=st.filter(t=>t>=lo&&t<hi).length; if(a1===a2) agree++; }
+        r.interval = agree/n*100; r.intervals=n;
+      }
+    }
+    res[b]=r;
+  }
+  res.overall = den? num/den*100 : (BKEYS.some(b=>res[b].specCount!=null)? 100 : null);
+  return res;
+}
+function verdict(v){ if(v==null) return ''; return v>=IOA_GOOD? `<span class="verdict" style="color:var(--good)">ممتاز (≥ ${IOA_GOOD}%)</span>` : v>=IOA_OK? `<span class="verdict" style="color:var(--good)">مقبول (≥ ${IOA_OK}%)</span>` : `<span class="verdict" style="color:var(--bad)">دون المعيار — راجعي التعريف أو زاوية الكاميرا</span>`; }
+function gauge(v,label,color){ return `<div class="gauge"><div class="row" style="justify-content:space-between"><span class="small">${label}</span><span class="num" style="font-weight:600">${pct(v)}</span></div><div class="bar"><i style="width:${v==null?0:Math.min(100,v)}%;background:${color}"></i><b title="حد القبول 80%"></b></div></div>`; }
+function vIoa(){
+  if(!S.sessions.length) return headBlock('الاتفاق والدقة','مقارنة النظام بالأخصائية','لا توجد جلسات بعد. سجّلي جلسة أولًا.');
+  const s=sessionById(S.ioaSession)||S.sessions[0]; S.ioaSession=s.id; const R=sessionIOA(s);
+  return `
+  ${headBlock('الاتفاق والدقة','مقارنة النظام بالأخصائية','تشاهد الأخصائية نفس الفيديو دون رؤية نتيجة النظام، وتسجّل عدد المرات وأوقاتها. يُحسب الاتفاق بين الملاحِظَين (IOA) ودقة الرصد. المعيار المعتمد في أبحاث تحليل السلوك: 80% فأكثر.')}
+  <div class="sheet row"><label class="f" style="flex:1 1 260px">الجلسة<select id="i_s">${S.sessions.map(x=>`<option value="${x.id}" ${x.id===s.id?'selected':''}>${esc(x.date)} · ${esc(x.label)}</option>`).join('')}</select></label>
+  <div class="stack" style="flex:1 1 220px;gap:4px"><span class="small muted">الاتفاق الكلي (كل السلوكيات)</span><span class="num" style="font-family:var(--display);font-size:1.6rem;font-weight:700">${pct(R.overall)}</span>${verdict(R.overall)}</div></div>
+  <form id="ioaForm" class="grid g3">
+  ${BKEYS.map(b=>{ const r=R[b], sp=(s.spec||{})[b]||{}; return `<div class="sheet beh-card ${BEH[b].cls}"><div class="inner">
+    <h3>${BEH[b].name}</h3>
+    <div class="row" style="justify-content:space-between"><span class="small muted">عدّ النظام (قبل المراجعة)</span><span class="num" style="font-weight:600">${r.sysCount}</span></div>
+    <label class="f">عدّ الأخصائية<input type="number" min="0" id="sc_${b}" value="${esc(sp.count??'')}" class="num"></label>
+    <label class="f">أوقات الأخصائية (اختياري، مثل 0:12, 1:03.5)<input type="text" id="st_${b}" value="${esc(sp.times??'')}" class="num" style="text-align:left"></label>
+    <hr>
+    ${gauge(r.total,'اتفاق العدّ الكلي', `var(${BEH[b].varc})`)}
+    ${r.interval!=null? gauge(r.interval,`اتفاق الفترات (${INTERVAL} ث × ${r.intervals})`, `var(${BEH[b].varc})`) : ''}
+    ${r.f1!=null? `<table><tbody><tr><td class="small">صحيح / زائد / فائت</td><td class="num">${r.tp} / ${r.fp} / ${r.fn}</td></tr><tr><td class="small">الدقة (Precision)</td><td class="num">${pct(r.precision)}</td></tr><tr><td class="small">الاستدعاء (Recall)</td><td class="num">${pct(r.recall)}</td></tr><tr><td class="small">F1</td><td class="num">${pct(r.f1)}</td></tr></tbody></table><p class="small muted">التطابق ضمن ±${TOL} ثانية.</p>` : `<p class="small muted">أدخلي الأوقات لحساب الدقة والاستدعاء.</p>`}
+  </div></div>`; }).join('')}
+  <div class="row" style="grid-column:1/-1"><button class="btn primary" type="submit">حفظ عدّ الأخصائية وحساب الاتفاق</button></div>
+  </form>
+  ${behaviorReportHTML(s,R)}`;
+}
+function behaviorRows(s,R){
+  return BKEYS.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event');
+    const extra = b==='raise'? (()=>{ const both=evs.filter(e=>/باليدين/.test(e.detail||'')).length; return `باليدين ${both}، بيد واحدة ${evs.length-both}`; })() : b==='clap'? `${evs.length} نوبة تصفيق` : '';
+    return {b, name:BEH[b].name, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall}; });
+}
+function behaviorReportText(s,R){
+  const rows=behaviorRows(s,R), L=[];
+  L.push('تقرير السلوكيات — '+EXP);
+  L.push(`ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+S.child.code:''}`);
+  L.push(`الجلسة: ${s.label} · ${s.date} · المدة ${fmtDur(s.duration)} · ${s.source==='camera'?'كاميرا مباشرة':'فيديو مسجّل'}`);
+  L.push('(مخرجات النظام قبل مراجعة الأخصائي)');
+  L.push('');
+  for(const r of rows){
+    L.push(`${r.name}: النظام ${r.sys} مرة${r.extra? ' ('+r.extra+')':''}`);
+    L.push(`  أوقات النظام: ${r.times.length? r.times.join('، ') : '—'}`);
+    if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} مرة${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
+    else L.push('  الأخصائية: لم يُسجَّل عدّها بعد');
+  }
+  const und=evOf(s.id).filter(e=>e.kind==='undet');
+  L.push(''); L.push(`فترات غير قابلة للتحديد: ${und.length}${und.length? ' ('+und.map(e=>BEH[e.behavior].name+' '+fmtT(e.start)+'–'+fmtT(e.end)).join('، ')+')':''}`);
+  return L.join('\n');
+}
+function behaviorReportHTML(s,R){
+  const rows=behaviorRows(s,R);
+  return `<div class="sheet stack">
+    <div class="row" style="justify-content:space-between"><div class="stack" style="gap:2px"><h2>تقرير كل سلوك</h2><p class="small muted">مخرجات النظام كما رصدها قبل مراجعة الأخصائي، لمقارنتها بتقرير الأخصائية للجلسة نفسها.</p></div>
+    <div class="row"><button class="btn primary" id="br_copy" type="button">نسخ التقرير لإرساله</button><button class="btn" id="br_csv" type="button">تنزيل CSV</button></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>عدّ النظام</th><th>أوقات النظام</th><th>عدّ الأخصائية</th><th>اتفاق العدّ</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:320px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <textarea id="br_text" class="out" hidden readonly></textarea>
+  </div>`;
+}
+async function copyText(t, el){
+  try{ await navigator.clipboard.writeText(t); toast('نُسخ التقرير. الصقيه في واتساب'); }
+  catch(e){ el.hidden=false; el.value=t; el.focus(); el.select(); toast('النسخ التلقائي غير متاح: النص محدّد، انسخيه يدويًا'); }
+}
+async function saveFile(name, data){
+  let dl=null; try{ dl = window.claude?.use ? await window.claude.use('downloads') : null; }catch(e){}
+  if(!dl){ const blob=new Blob([data],{type:/\.csv$/.test(name)?'text/csv;charset=utf-8':'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('حُفظ الملف '+name); return; }
+  try{ await dl.save({filename:name, data}); toast('جاهز للحفظ'); }catch(err){ if(err.code!=='declined') toast('تعذّر التنزيل: '+(err.message||err.code)); }
+}
+afterRender.ioa = ()=>{
+  const sel=$('#i_s'); if(!sel) return;
+  $('#br_copy').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); copyText(behaviorReportText(s,sessionIOA(s)), $('#br_text')); });
+  $('#br_csv').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); const rows=behaviorRows(s,sessionIOA(s));
+    const out=[['experiment','file_number','session','date','duration_s','behavior','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1']];
+    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),r.total==null?'':r.total.toFixed(1),r.precision==null?'':r.precision.toFixed(1),r.recall==null?'':r.recall.toFixed(1),r.f1==null?'':r.f1.toFixed(1)]));
+    saveFile(`behavior-report-${fmtFile(S.child.fileNo)}-${s.date}.csv`, '\ufeff'+out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n')); });
+  sel.addEventListener('change',()=>{ S.ioaSession=sel.value; render(); });
+  $('#ioaForm').addEventListener('submit', async e=>{ e.preventDefault(); const s=sessionById(S.ioaSession); const spec={};
+    BKEYS.forEach(b=>{ spec[b]={count:$('#sc_'+b).value, times:$('#st_'+b).value.trim()}; });
+    try{ await Store.update('sessions',s.id,{spec}); s.spec=spec; toast('حُسب الاتفاق'); render(); }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); } });
+};
+
+/* REPORT */
+function weekData(){
+  const start = S.reportStart || (()=>{ const d=new Date(); d.setDate(d.getDate()-6); return ymd(d); })();
+  S.reportStart=start;
+  const days=[...Array(7)].map((_,i)=>{ const d=new Date(start+'T00:00:00'); d.setDate(d.getDate()+i); return ymd(d); });
+  const ses=S.sessions.filter(s=>days.includes(s.date));
+  const ok = e => e.kind==='event' && (e.status==='approved' || (S.includePending && e.status==='pending'));
+  const per={}; BKEYS.forEach(b=>per[b]=days.map(d=>sum(S.events.filter(e=>e.behavior===b && ok(e) && sessionById(e.sessionId)?.date===d).map(evCount))));
+  const hours=sum(ses.map(s=>s.duration||0))/3600;
+  const undet=sum(S.events.filter(e=>e.kind==='undet' && ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start));
+  const ctx=S.events.filter(e=>ok(e) && e.context && ses.some(s=>s.id===e.sessionId)).map(e=>({behavior:BEH[e.behavior].name, date:sessionById(e.sessionId).date, time:fmtT(e.start), context:e.context, detail:e.detail}));
+  const raiseDur=S.events.filter(e=>e.behavior==='raise'&&ok(e)&&ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start);
+  return {start, days, ses, per, hours, undet, ctx, raiseDur};
+}
+function barChart(vals, days, color, title){
+  const mx=Math.max(4, ...vals); const step = mx<=8?2: mx<=20?5:10; const top=Math.ceil(mx/step)*step;
+  const W=300,H=150,l=28,r=8,t=14,bt=26, cw=(W-l-r)/7;
+  const Y=v=>t+(H-t-bt)*(1-v/top);
+  let g=''; for(let v=0; v<=top; v+=step){ g+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--rule)"/><text x="${l-6}" y="${Y(v)+3.5}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Mono, monospace">${v}</text>`; }
+  const dn=['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+  vals.forEach((v,i)=>{ const x=l+i*cw+cw*0.2, w=cw*0.6; if(v>0) g+=`<rect x="${x}" y="${Y(v)}" width="${w}" height="${Y(0)-Y(v)}" rx="2" fill="${color}"><title>${days[i]}: ${v}</title></rect><text x="${x+w/2}" y="${Y(v)-4}" font-size="10" fill="var(--ink)" text-anchor="middle" font-family="IBM Plex Mono, monospace">${v}</text>`;
+    g+=`<text x="${x+w/2}" y="${H-8}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${dn[new Date(days[i]+'T00:00:00').getDay()]}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title}" direction="ltr">${g}</svg>`;
+}
+function vReport(){
+  const D=weekData(); const hrs=D.hours;
+  return `
+  ${headBlock('التقرير الأسبوعي','ملخص الأسبوع', 'الأرقام من الأحداث المعتمدة فقط. النص يُصاغ من مصادر الأخصائية وحدها ثم تراجعه قبل مشاركته.')}
+  <div class="sheet row">
+    <label class="f" style="flex:0 1 200px">بداية الأسبوع<input type="date" id="r_start" value="${D.start}"></label>
+    <label class="check" style="align-self:flex-end"><input type="checkbox" id="r_pend" ${S.includePending?'checked':''}> تضمين الأحداث المقترحة غير المعتمدة</label>
+    <span class="small muted" style="align-self:flex-end">${D.ses.length} جلسة · ملاحظة ${fmtDur(hrs*3600)}</span>
+  </div>
+  <div class="grid g3">${BKEYS.map(b=>{ const tot=sum(D.per[b]); return `<div class="sheet stack chart"><div class="row" style="justify-content:space-between"><h3 class="${BEH[b].cls}" style="color:var(${BEH[b].varc})">${BEH[b].name}</h3><span class="num small">${tot} مرة</span></div>${barChart(D.per[b],D.days,`var(${BEH[b].varc})`,`${BEH[b].name} في كل يوم`)}</div>`; }).join('')}</div>
+  <div class="sheet flush"><div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>المجموع</th><th>المعدل بالساعة</th><th>أعلى يوم</th><th>ملاحظة</th></tr></thead><tbody>
+  ${BKEYS.map(b=>{ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); return `<tr><td><span class="chip ${BEH[b].cls}">${BEH[b].name}</span></td><td class="num">${tot}</td><td class="num">${hrs? (tot/hrs).toFixed(1) : '—'}</td><td class="num">${mx? D.days[di]+' ('+mx+')' : '—'}</td><td class="small"></td></tr>`; }).join('')}
+  <tr><td class="muted small">غير قابل للتحديد</td><td class="num" colspan="4">${fmtDur(D.undet)} من زمن الملاحظة</td></tr>
+  </tbody></table></div></div>
+  <div class="sheet stack">
+    <div class="row" style="justify-content:space-between"><h2>نص التقرير</h2><div class="row"><button class="btn primary" id="r_gen">صياغة من المصادر</button><button class="btn" id="r_csv">تنزيل الأحداث CSV</button><button class="btn" id="r_json">تنزيل كل البيانات JSON</button></div></div>
+    <p class="small muted">لتقرير كل سلوك في جلسة واحدة ومقارنته بعدّ الأخصائية: <button class="btn sm ghost" data-go="ioa">الاتفاق والدقة</button></p>
+    <p class="small muted">يستخدم ${S.sources.length} مصدرًا من مكتبة المصادر، وأهداف الأخصائي في ملف الطفل، وسياقات الأحداث المعتمدة. لا يبحث خارجها.</p>
+    <textarea id="r_out" class="out" style="min-height:220px" placeholder="اضغطي «صياغة من المصادر» لإنشاء مسودة يراجعها الأخصائي."></textarea>
+    <span class="small muted" id="r_msg"></span>
+  </div>`;
+}
+afterRender.report = ()=>{
+  $('#r_start').addEventListener('change',e=>{ S.reportStart=e.target.value; render(); });
+  $('#r_pend').addEventListener('change',e=>{ S.includePending=e.target.checked; render(); });
+  $('#r_gen').addEventListener('click', genReport);
+  $('#r_csv').addEventListener('click', ()=>download('csv'));
+  $('#r_json').addEventListener('click', ()=>download('json'));
+};
+async function genReport(){
+  const out=$('#r_out'), msg=$('#r_msg'), btn=$('#r_gen');
+  let sample=null; try{ sample = window.claude?.use ? await window.claude.use('sample') : null; }catch(e){}
+  if(!sample){ out.value=localDraft(); msg.textContent='مسودة مبنية من الأرقام والسياقات المعتمدة فقط. راجعيها وأكمليها بتفسير الأخصائية.'; return; }
+  const D=weekData();
+  const data={ file_number:fmtFile(S.child.fileNo), participant:S.child.code||'—', week_start:D.start, sessions:D.ses.length, observed_hours:+D.hours.toFixed(2), unclear_minutes:+(D.undet/60).toFixed(1),
+    totals:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, sum(D.per[b])])), daily:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, Object.fromEntries(D.days.map((d,i)=>[d,D.per[b][i]]))])),
+    rate_per_hour:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, D.hours? +(sum(D.per[b])/D.hours).toFixed(2) : null])), contexts:D.ctx };
+  const sources=S.sources.map((s,i)=>`[م${i+1}] ${s.title}\n${s.text}`).join('\n\n');
+  const prompt=`أنت مساعد صياغة تقارير لأخصائي تحليل سلوك تطبيقي معتمد (BCBA). اكتب مسودة تقرير أسبوعي بالعربية الفصحى الواضحة.
+
+القواعد الملزمة:
+1. استخدم الأرقام الواردة في البيانات فقط، ولا تخترع أرقامًا.
+2. أي تفسير أو معلومة مهنية يجب أن تأتي من المصادر المرفقة، مع الإشارة إلى المصدر مثل [م1]. إن لم تكفِ المصادر فقل ذلك صراحة.
+3. لا تنسب سببًا لأي سلوك. صف السياق بصيغة "بعد" أو "قبل" فقط، واذكر الاحتمالات دون جزم.
+4. لا تشخيص ولا توصيات علاجية جديدة. اربط النتائج بأهداف الأخصائي المكتوبة فقط.
+5. اذكر الفترات غير القابلة للتحديد كقيد على القياس.
+6. البنية: ملخص في فقرة، ثم النتائج لكل سلوك، ثم السياقات الملاحظة، ثم القيود. بلا عناوين Markdown؛ عناوين قصيرة كسطر عادي.
+7. اختم بسطر: "مسودة آلية للمراجعة؛ القرار النهائي للأخصائي."
+
+أهداف الأخصائي:
+${S.child.goals||'لم تُكتب أهداف بعد.'}
+
+البيانات (JSON):
+${JSON.stringify(data,null,1)}
+
+المصادر:
+${sources||'لا توجد مصادر.'}`;
+  btn.disabled=true; msg.textContent='تُصاغ المسودة…'; out.value='';
+  try{ const r=await sample(prompt,{onText:({text})=>{ out.value=text; }, modelTier:'default', cache:false}); out.value=r.text; msg.textContent=r.truncated? 'النص مقطوع؛ أعيدي المحاولة.' : 'مسودة جاهزة للمراجعة والتعديل.'; }
+  catch(err){ msg.textContent = err.code==='not_granted'? 'لم يُسمح بالصياغة الآلية لهذه الصفحة.' : err.code==='rate_limited'? 'طلبات كثيرة؛ حاولي بعد دقيقة.' : 'تعذّرت الصياغة: '+(err.message||err.code); if(err.text) out.value=err.text; }
+  btn.disabled=false;
+}
+function localDraft(){
+  const D=weekData(), L=[];
+  const end=D.days[6];
+  L.push(`تقرير أسبوعي — ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+S.child.code:''}`);
+  L.push(`الفترة: ${D.start} إلى ${end}`);
+  L.push('');
+  L.push('ملخص');
+  L.push(`عدد جلسات الرصد ${D.ses.length}، وزمن الملاحظة ${fmtDur(D.hours*3600)}. الأرقام التالية من الأحداث التي اعتمدها الأخصائي${S.includePending?' مع الأحداث المقترحة غير المعتمدة':''}.`);
+  L.push('');
+  L.push('النتائج');
+  for(const b of BKEYS){ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx);
+    L.push(`- ${BEH[b].name}: ${tot} مرة${D.hours? `، بمعدل ${(tot/D.hours).toFixed(1)} مرة في الساعة`:''}${mx? `، وأعلى يوم ${D.days[di]} (${mx} مرة)`:''}.`); }
+  L.push('');
+  L.push('السياقات الملاحظة (ما حدث قبل السلوك، دون جزم بالسبب)');
+  if(D.ctx.length) D.ctx.forEach(c=>L.push(`- ${c.date} ${c.time}: ${c.behavior}، بعد ${c.context.replace(/^بعد\s*/,'')}`));
+  else L.push('- لم تُسجَّل سياقات هذا الأسبوع.');
+  L.push('');
+  L.push('الارتباط بأهداف الأخصائي');
+  L.push(S.child.goals? S.child.goals.split('\n').filter(Boolean).map(g=>'- '+g+': [تعليق الأخصائي]').join('\n') : '- لم تُكتب أهداف في ملف الطفل.');
+  L.push('');
+  L.push('قيود القياس');
+  L.push(`- فترات غير قابلة للتحديد (حركة محجوبة أو خارج الإطار): ${fmtDur(D.undet)}.`);
+  L.push('- الرصد آلي من نقاط الجسم ويخضع لمراجعة الأخصائي.');
+  L.push('');
+  L.push('مسودة للمراجعة؛ القرار النهائي للأخصائي.');
+  return L.join('\n');
+}
+async function download(kind){
+  let dl=null; try{ dl = window.claude?.use ? await window.claude.use('downloads') : null; }catch(e){}
+  let data, name;
+  if(kind==='csv'){
+    const rows=[['session_date','session','behavior','kind','start_s','end_s','duration_s','count','detail','context','status']];
+    for(const e of S.events){ const s=sessionById(e.sessionId)||{}; rows.push([s.date,s.label,BEH[e.behavior].name,e.kind,e.start,e.end,(e.end-e.start).toFixed(2),e.kind==='event'?(e.count||1):0,e.detail,e.context,e.status]); }
+    data='﻿'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n'); name=`bcba-events-${today()}.csv`;
+  } else { data=JSON.stringify({child:S.child, sessions:S.sessions, events:S.events, sources:S.sources, exportedAt:new Date().toISOString(), app:'bcba-assistant'},null,2); name=`bcba-data-${today()}.json`; }
+  if(!dl){ const blob=new Blob([data],{type: kind==='csv'?'text/csv;charset=utf-8':'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); toast('حُفظ الملف '+name); return; }
+  try{ await dl.save({filename:name, data}); toast('جاهز للحفظ'); }catch(err){ if(err.code!=='declined') toast('تعذّر التنزيل: '+(err.message||err.code)); }
+}
+
+/* SOURCES */
+function vSources(){
+  return `
+  ${headBlock('مكتبة المصادر','مصادر الأخصائية','هذه هي المعرفة الوحيدة التي يعتمد عليها النظام عند صياغة التقرير (أسلوب RAG مغلق). لا يبحث في الإنترنت.')}
+  <form class="sheet stack" id="srcForm">
+    <div class="grid g2"><label class="f">عنوان المصدر<input type="text" id="src_t" required placeholder="مثل: دليل التعامل مع رفع اليد المتكرر"></label>
+    <label class="f">يخص سلوك<select id="src_b"><option value="">عام</option>${BKEYS.map(b=>`<option value="${b}">${BEH[b].name}</option>`).join('')}</select></label></div>
+    <label class="f">النص<textarea id="src_x" required style="min-height:120px" placeholder="الصقي نص المصدر أو الملخص الذي تعتمده الأخصائية"></textarea></label>
+    <div class="row"><button class="btn primary" type="submit">إضافة المصدر</button></div>
+  </form>
+  <div class="stack">${S.sources.length? S.sources.map((s,i)=>`<article class="sheet stack" style="gap:8px"><div class="row" style="justify-content:space-between"><div class="row"><span class="num small muted">م${i+1}</span><h3>${esc(s.title)}</h3>${s.behavior?`<span class="chip ${BEH[s.behavior].cls}">${BEH[s.behavior].name}</span>`:''}</div><button class="btn sm ghost" data-del-src="${s.id}">حذف</button></div><p class="small" style="white-space:pre-wrap;max-height:180px;overflow:auto">${esc(s.text)}</p></article>`).join('') : '<p class="muted">لا توجد مصادر بعد.</p>'}</div>`;
+}
+afterRender.sources = ()=>{
+  $('#srcForm').addEventListener('submit', async e=>{ e.preventDefault(); const id=uid();
+    const d={title:$('#src_t').value.trim(), behavior:$('#src_b').value, text:$('#src_x').value.trim(), createdAt:Date.now()};
+    try{ await Store.set('sources',id,d); S.sources.push({id,...d}); render(); toast('أُضيف المصدر'); }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); } });
+  $('#vroot').addEventListener('click', async e=>{ const b=e.target.closest('[data-del-src]'); if(!b) return;
+    if(b.dataset.armed!=='1'){ b.dataset.armed='1'; b.textContent='تأكيد'; b.classList.add('danger'); return; }
+    try{ await Store.del('sources',b.dataset.delSrc); S.sources=S.sources.filter(s=>s.id!==b.dataset.delSrc); render(); }catch(err){ toast('تعذّر الحذف'); } });
+};
+
+/* METHOD */
+function vMethod(){
+  return `
+  ${headBlock('المنهجية والمعايير','كيف يُقاس النظام علميًا','هذه الصفحة تصف المنهجية التي يطبّقها الموقع، ويمكن نقلها إلى قسم المنهجية في البحث.')}
+  <div class="sheet method">
+    <h2>عنوان التجربة</h2>
+    <p><b>${EXP}</b></p>
+    <h2>1. التصميم</h2>
+    <p>دراسة تطوير وتقييم لنموذج أولي: يقارَن رصد النظام الآلي بملاحظة بشرية مستقلة من أخصائية BCBA على الفيديوهات نفسها. المتغير المقيس هو صدق القياس الآلي لثلاث سلوكيات معرّفة تشغيليًا.</p>
+    <h2>2. التعريفات التشغيلية</h2>
+    <p>لكل سلوك تعريف قابل للملاحظة والقياس، بلحظة بداية ونهاية وقاعدة عدّ صريحة، صاغته الأخصائية المشرفة. يطبّق النظام كل تعريف كقاعدة على نقاط الجسم، وتظهر القاعدتان جنبًا إلى جنب في صفحة السلوكيات.</p>
+    <h2>3. أبعاد القياس</h2>
+    <ul><li>التكرار: عدد مرات حدوث السلوك في الجلسة.</li><li>المعدل: التكرار مقسومًا على زمن الملاحظة (مرة/ساعة)، ليمكن مقارنة جلسات مختلفة الطول.</li><li>المدة: خارج نطاق المرحلة الأولى بطلب الأخصائية حتى يبقى الاختبار محددًا، وتُضاف لاحقًا عند الحاجة.</li></ul>
+    <h2>4. المرجع البشري</h2>
+    <p>تعدّ الأخصائية السلوكيات في الفيديو نفسه دون الاطلاع على نتيجة النظام (ملاحظة معماة)، وتسجّل أوقات الحدوث.</p>
+    <h2>5. مؤشرات الاتفاق والدقة</h2>
+    <p>اتفاق العدّ الكلي (Total count IOA):</p>
+    <div class="formula">IOA = (smaller count ÷ larger count) × 100</div>
+    <p>اتفاق العدّ لكل فترة (Exact count-per-interval IOA) بفترات ${INTERVAL} ثوانٍ:</p>
+    <div class="formula">IOA = (intervals with identical counts ÷ total intervals) × 100</div>
+    <p>يُعدّ الاتفاق مقبولًا عند ${IOA_OK}% فأكثر، وهو الحد الشائع في أبحاث تحليل السلوك التطبيقي، ويُفضَّل ${IOA_GOOD}% فأكثر.</p>
+    <p>ولأن النظام مصنِّف آلي، تُحسب أيضًا مقاييس تعلّم الآلة بمطابقة كل حدث بشري بحدث آلي ضمن ±${TOL} ثانية:</p>
+    <div class="formula">Precision = TP ÷ (TP + FP)   Recall = TP ÷ (TP + FN)   F1 = 2PR ÷ (P + R)</div>
+    <h2>6. الإنسان صاحب القرار</h2>
+    <p>كل حدث آلي يُحفظ «مقترحًا». لا يدخل التقرير إلا ما اعتمده الأخصائي. السياق يُكتب بصيغة «بعد» لتجنّب الاستنتاج السببي غير المثبت.</p>
+    <h2>7. الخصوصية</h2>
+    <ul><li>المعالجة داخل جهاز المستخدم؛ لا يُرسَل الفيديو ولا يُخزَّن، والبيانات النصية تبقى في متصفح الجهاز نفسه ولا تُرفع إلى أي خادم.</li><li>يُحفظ من كل حدث: الوقت والنوع ونقاط الهيكل العظمي فقط، دون وجه أو مكان.</li><li>رمز للمشارك بدل الاسم، تقليلًا للبيانات وفق نظام حماية البيانات الشخصية في المملكة.</li><li>الكاميرا خارج غرف النوم والحمّامات.</li></ul>
+    <h2>8. الأخلاقيات</h2>
+    <p>موافقة مستنيرة مكتوبة من ولي الأمر، وقبول الطفل بحسب قدرته مع التوقف عند الانزعاج، وإشراف أخصائية معتمدة، والالتزام بمدونة أخلاقيات مجلس اعتماد محللي السلوك (BACB). التجارب الأولى على متطوعين بالغين يؤدون الحركات.</p>
+    <h2>9. حدود النموذج الأولي</h2>
+    <ul><li>التصفيق السريع قد يفوت عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>رصد «سلوك جديد» غير معرّف مسبقًا خارج نطاق هذا النموذج.</li></ul>
+    <h2>المراجع</h2>
+    <ol class="refs">
+      <li>Cooper, J. O., Heron, T. E., & Heward, W. L. (2020). <i>Applied Behavior Analysis</i> (3rd ed.). Pearson.</li>
+      <li>Behavior Analyst Certification Board. (2020). <i>Ethics Code for Behavior Analysts</i>.</li>
+      <li>Bazarevsky, V., et al. (2020). BlazePose: On-device real-time body pose tracking. <i>CVPR Workshop on Computer Vision for AR/VR</i>.</li>
+      <li>Lugaresi, C., et al. (2019). MediaPipe: A framework for building perception pipelines. <i>arXiv:1906.08172</i>.</li>
+      <li>Lewis, P., et al. (2020). Retrieval-augmented generation for knowledge-intensive NLP tasks. <i>NeurIPS</i>.</li>
+      <li>الهيئة السعودية للبيانات والذكاء الاصطناعي. نظام حماية البيانات الشخصية.</li>
+      <li>Hamad Bin Khalifa University, A-Sense. <a href="https://www.hbku.edu.qa/en/cse/a-sense/projects/empowerot-vision-language-ai-system-support-occupational-therapy-outside-clinic" target="_blank" rel="noopener">EmpowerOT</a> و<a href="https://www.hbku.edu.qa/en/cse/a-sense/project/automating-engagement-assessment-childrens-play-video" target="_blank" rel="noopener">Automating Engagement Assessment</a>.</li>
+    </ol>
+  </div>`;
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  $('#views').innerHTML='<p class="muted">جارٍ التحميل…</p>';
+  await Store.init();
+  { const h0=(location.hash||'').slice(1); S.view=['behaviors','sources','method'].includes(h0)? h0 : 'files'; }
+  if(Store.mode==='cloud' && !Store.user){ render(); return; }
+  try{ await loadAll(); }catch(err){ $('#views').innerHTML=`<div class="notice bad">تعذّر قراءة البيانات: ${esc(err.message||err.code)}</div>`; renderNav(); return; }
+  const h=(location.hash||'').slice(1); S.view = ['behaviors','sources','method'].includes(h)? h : 'files';
+  render();
+  if(Store.db){
+    let tmr=null; const refresh=()=>{ clearTimeout(tmr); tmr=setTimeout(async()=>{ if(S.view==='session' || document.activeElement?.matches('input,textarea,select')) return; await loadAll(); render(); },600); };
+    ['children','sessions','sources'].forEach(c=>{ let first=true; Store.db.collection(c).onSnapshot(()=>{ if(first){ first=false; return; } refresh(); }, ()=>{}); });
+  }
+})();
+</script>
+
+</body>
+</html>
