@@ -114,6 +114,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .p-approved{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
 .p-rejected{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
 .p-undet{background:var(--rule);color:var(--muted)}
+.p-sync{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.counter.sync{color:var(--accent)}
+.counter .sub{font-size:.78rem;color:var(--muted)}
+.combo-list{display:flex;flex-direction:column;gap:2px;font-size:.84rem;color:var(--ink)}
 .tally{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:30px}
 .tally svg{display:block}
 .counter{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-top:3px solid currentColor;background:var(--sheet);border-radius:0 0 8px 8px}
@@ -371,6 +375,36 @@ function openChild(id){
   applyChild(); go('home');
 }
 const sessionById = id => S.sessions.find(s=>s.id===id);
+/* Simultaneous actions: two different behaviours whose times overlap (±SYNC_TOL s).
+   Each overlapping event is counted in a separate "متزامن" box, not in the solo box. */
+const SYNC_TOL = 0.3;
+const comboName = set => BKEYS.filter(b=>set.has(b)).map(b=>BEH[b].name).join(' + ');
+function cooccur(evs){
+  evs = evs.filter(e=>e.kind==='event');
+  const iv = evs.filter(e=>e.behavior!=='clap').map(e=>({e, b:e.behavior, s:e.start, t:Math.max(e.end, e.start)}));
+  const claps = []; evs.filter(e=>e.behavior==='clap').forEach(e=>{ const ts=(e.times&&e.times.length)? e.times : [e.start]; ts.forEach(t=>claps.push({e,t})); });
+  const withMap = new Map(); const mark=(e,b)=>{ if(!withMap.has(e)) withMap.set(e,new Set()); withMap.get(e).add(b); };
+  const parent = iv.map((_,i)=>i); const find=i=>parent[i]===i?i:(parent[i]=find(parent[i])); const unite=(a,b)=>{ parent[find(a)]=find(b); };
+  for(let i=0;i<iv.length;i++) for(let j=i+1;j<iv.length;j++){
+    const A=iv[i], B=iv[j]; if(A.b!==B.b && A.s<=B.t+SYNC_TOL && B.s<=A.t+SYNC_TOL){ mark(A.e,B.b); mark(B.e,A.b); unite(i,j); } }
+  const syncClaps = new Map(); const clapInGroup = new Map();
+  claps.forEach(c=>{ const hits=[]; iv.forEach((x,i)=>{ if(c.t>=x.s-SYNC_TOL && c.t<=x.t+SYNC_TOL) hits.push(i); });
+    if(hits.length){ syncClaps.set(c.e,(syncClaps.get(c.e)||0)+1); hits.forEach(i=>{ mark(iv[i].e,'clap'); mark(c.e,iv[i].b); });
+      for(let k=1;k<hits.length;k++) unite(hits[0],hits[k]); const r=find(hits[0]); clapInGroup.set(r,(clapInGroup.get(r)||0)+1); } });
+  const groups = new Map();
+  iv.forEach((x,i)=>{ if(!withMap.has(x.e)) return; const r=find(i); if(!groups.has(r)) groups.set(r,{beh:new Set(), start:Infinity, end:-Infinity, claps:0}); const g=groups.get(r); g.beh.add(x.b); g.start=Math.min(g.start,x.s); g.end=Math.max(g.end,x.t); });
+  [...clapInGroup.keys()].forEach(k=>{ const r=find(k); const g=groups.get(r); if(g){ g.beh.add('clap'); g.claps+=clapInGroup.get(k); } });
+  const episodes=[...groups.values()].filter(g=>g.beh.size>1).map(g=>({label:comboName(g.beh), behaviors:[...g.beh], start:g.start, end:g.end, claps:g.claps})).sort((a,b)=>a.start-b.start);
+  const per={}; BKEYS.forEach(b=>{ const list=evs.filter(e=>e.behavior===b);
+    if(b==='clap'){ const total=sum(list.map(e=>e.count??((e.times||[]).length||1))); const sync=Math.min(total, sum(list.map(e=>Math.min(syncClaps.get(e)||0, e.count??Infinity)))); per[b]={total, sync, solo:total-sync}; }
+    else { const total=list.length, sync=list.filter(e=>withMap.has(e)).length; per[b]={total, sync, solo:total-sync}; } });
+  const combos={}; episodes.forEach(x=>{ combos[x.label]=(combos[x.label]||0)+1; });
+  return {per, episodes, combos, withMap};
+}
+function mergeCo(list){ const out={per:{}, episodes:[], combos:{}}; BKEYS.forEach(b=>out.per[b]={total:0,sync:0,solo:0});
+  list.forEach(c=>{ BKEYS.forEach(b=>{ ['total','sync','solo'].forEach(k=>out.per[b][k]+=c.per[b][k]); }); out.episodes.push(...c.episodes); Object.entries(c.combos).forEach(([k,v])=>out.combos[k]=(out.combos[k]||0)+v); });
+  return out; }
+const syncLine = co => Object.keys(co.combos).length? Object.entries(co.combos).map(([k,v])=>`${k}: ${v}`).join('، ') : 'لا يوجد';
 const evOf = (sid, b) => S.events.filter(e=>e.sessionId===sid && (!b || e.behavior===b));
 const evCount = e => e.kind==='event' ? (e.count||1) : 0;
 
@@ -466,7 +500,7 @@ function vHome(){
   const ioaVals=S.sessions.map(s=>sessionIOA(s)).filter(x=>x.overall!=null);
   const lastIoa=ioaVals.length? ioaVals[0].overall : null;
   const consentOk = c.kind==='volunteer' || (c.consentGuardian && c.consentAssent && c.consentSpecialist);
-  const counts = Object.fromEntries(BKEYS.map(b=>[b, sum(ev.filter(e=>e.behavior===b && e.status==='approved').map(evCount))]));
+  const coH = mergeCo(S.sessions.map(x=>cooccur(evOf(x.id).filter(e=>e.status==='approved'))));
   return `
   ${headBlock(`لوحة الطفل · ملف رقم ${fmtFile(c.fileNo)}`, c.code? `المشارك ${esc(c.code)}` : `ملف ${fmtFile(c.fileNo)}`, 'نظام يرصد ثلاث سلوكيات معرّفة تشغيليًا من فيديو أو كاميرا داخل جهازك، ويقترح أحداثًا يعتمدها الأخصائي قبل دخولها التقرير.',
     `<label class="btn" for="imp_file" style="cursor:pointer">استيراد بيانات</label><input type="file" id="imp_file" accept="application/json,.json" hidden><button class="btn primary" data-go="session">ابدأ جلسة رصد</button>`)}
@@ -477,8 +511,9 @@ function vHome(){
     <div class="kpi ${pending?'attn':''}"><span class="v num">${pending}</span><span class="k">أحداث تنتظر المراجعة</span></div>
     <div class="kpi"><span class="v num">${pct(lastIoa)}</span><span class="k">آخر اتفاق مع الأخصائية (IOA)</span></div>
   </div></div>
-  <div class="grid g3">
-    ${BKEYS.map(b=>`<div class="counter ${BEH[b].cls}"><span class="lbl">${BEH[b].name}</span><div class="tally">${tallySVG(counts[b], `var(${BEH[b].varc})`)}</div><span class="small muted">${counts[b]} مرة معتمدة في كل الجلسات</span></div>`).join('')}
+  <div class="grid g4">
+    ${BKEYS.map(b=>{ const p=coH.per[b]; return `<div class="counter ${BEH[b].cls}"><span class="lbl">${BEH[b].name} · منفرد</span><div class="tally">${tallySVG(p.solo, `var(${BEH[b].varc})`)}</div><span class="small muted">${p.solo} منفرد${p.sync? ` · ${p.sync} متزامن`:''} (معتمد)</span></div>`; }).join('')}
+    <div class="counter sync"><span class="lbl">أفعال متزامنة</span><div class="tally">${tallySVG(coH.episodes.length, 'var(--accent)')}</div><div class="combo-list">${Object.keys(coH.combos).length? Object.entries(coH.combos).map(([k,v])=>`<span>${k}: <b class="num">${v}</b></span>`).join('') : '<span class="small muted">لا يوجد بعد</span>'}</div></div>
   </div>
   <div class="sheet stack">
     <div class="row" style="justify-content:space-between"><h2>الجلسات</h2><button class="btn sm" data-go="review">مراجعة الأحداث</button></div>
@@ -587,6 +622,10 @@ function vBehaviors(){
     <div class="stack"><span class="eyebrow">كيف يرصده النظام</span><p class="small">${x.tech}</p></div>
   </div></article>`; }).join('')}
   </div>
+  <div class="sheet stack" style="border-top:3px solid var(--accent)"><h2>الفعل المتزامن</h2>
+    <dl class="def"><dt>التعريف</dt><dd>حدوث سلوكين مختلفين أو أكثر في الوقت نفسه، مثل التصفيق واليدان مرفوعتان، أو رفع اليد أثناء القيام.</dd>
+    <dt>قاعدة العدّ</dt><dd>كل تداخل زمني بين سلوكين (بهامش ${SYNC_TOL} ثانية) يُسجَّل فعلًا متزامنًا واحدًا في خانة مستقلة، ويُحسب كل سلوك داخله في خانة «متزامن» لا في خانة «منفرد». المجموع = منفرد + متزامن.</dd>
+    <dt>مثال</dt><dd>رفع اليدين مرة مع تصفيقتين فوق الرأس: رفع اليد متزامن 1، التصفيق متزامن 2، أفعال متزامنة 1 (رفع اليد + التصفيق).</dd></dl></div>
   <div class="notice">إذا كانت الحركة محجوبة أو خارج إطار الكاميرا لأكثر من ثانية، تُسجَّل الفترة «غير قابلة للتحديد» بدل تخمينها، وتظهر في المراجعة والتقرير.</div>`;
 }
 
@@ -721,7 +760,7 @@ function vSession(){
         </div>
         <p class="small muted">عندك فيديو مسجّل؟ ارفعيه بـ«اختيار فيديو» بدل تشغيله أمام الكاميرا: يُحلَّل إطارًا إطارًا ويتوقف وحده عند نهايته. أما الكاميرا فتتوقف وحدها عند انتهاء المدة المختارة.</p>
       </div>
-      <div class="grid g3" style="gap:8px" id="liveCounters"></div>
+      <div class="grid g2" style="gap:8px" id="liveCounters"></div>
       <div class="sheet stack" id="saveBox" hidden>
         <p class="small"><b id="saveSummary"></b></p>
         <div class="row"><button class="btn primary" id="s_save">حفظ الجلسة وإرسالها للمراجعة</button><button class="btn ghost" id="s_discard">تجاهل</button></div>
@@ -729,8 +768,11 @@ function vSession(){
     </div>
   </div></div>`;
 }
-function renderCounters(cn){
-  $('#liveCounters').innerHTML = BKEYS.map(b=>`<div class="counter ${BEH[b].cls}" style="padding:10px 12px"><span class="lbl small">${BEH[b].name}</span><span class="n num">${cn[b]}</span></div>`).join('');
+function renderCounters(cn, co){
+  co = co || {per:Object.fromEntries(BKEYS.map(b=>[b,{solo:cn[b],sync:0}])), episodes:[], combos:{}};
+  const solo = b => b==='clap'? Math.max(0, cn[b]-co.per[b].sync) : co.per[b].solo;
+  $('#liveCounters').innerHTML = BKEYS.map(b=>`<div class="counter ${BEH[b].cls}" style="padding:10px 12px"><span class="lbl small">${BEH[b].name} (منفرد)</span><span class="n num">${solo(b)}</span>${co.per[b].sync?`<span class="sub">ومتزامن: <b class="num">${co.per[b].sync}</b></span>`:''}</div>`).join('')
+    + `<div class="counter sync" style="padding:10px 12px"><span class="lbl small">أفعال متزامنة</span><span class="n num">${co.episodes.length}</span>${co.episodes.length?`<div class="combo-list">${Object.entries(co.combos).map(([k,v])=>`<span>${k}: <b class="num">${v}</b></span>`).join('')}</div>`:''}</div>`;
 }
 function drawTimeline(events, dur){
   const svg=$('#tl'); if(!svg) return; dur=Math.max(dur||1,1);
@@ -793,7 +835,7 @@ async function analyzeFile(file){
     await pose.send({image:v});
     const lm = lastResults && lastResults.poseLandmarks;
     det.update(t, lm); n++;
-    if(n%3===0){ drawOverlay(lm,W,H); renderCounters(det.counts()); $('#prog').style.width=(t/dur*100)+'%';
+    if(n%3===0){ drawOverlay(lm,W,H); renderCounters(det.counts(), cooccur(det.events)); $('#prog').style.width=(t/dur*100)+'%';
       const sp=(t/((performance.now()-t0)/1000)); setStatus(`يحلّل ${fmtT(t)} من ${fmtT(dur)} · سرعة ${sp.toFixed(1)}×`);
       if(n%15===0) drawTimeline(det.events, dur); }
   }
@@ -823,7 +865,7 @@ async function startCamera(){
     await pose.send({image:v}); const t=(performance.now()-t0)/1000; const lm=lastResults&&lastResults.poseLandmarks;
     if(limit && t>=limit){ reachedLimit=true; break; }
     det.update(t,lm); drawOverlay(lm,W,H); n++;
-    if(n%5===0 || n===1){ renderCounters(det.counts()); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو`); drawTimeline(det.events, Math.max(limit||60,t)); }
+    if(n%5===0 || n===1){ renderCounters(det.counts(), cooccur(det.events)); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو`); drawTimeline(det.events, Math.max(limit||60,t)); }
     await new Promise(r=>requestAnimationFrame(r));
   }
   run.reachedLimit=reachedLimit;
@@ -832,10 +874,10 @@ async function startCamera(){
 }
 function stopCamera(){ try{ wakeLock?.release(); }catch(e){} wakeLock=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } if(run && run.active && run.source==='camera') run.stop=true; }
 function finishRun(){
-  const det=run.det, cn=det.counts(); renderCounters(cn); drawTimeline(det.events, run.duration);
+  const det=run.det, cn=det.counts(), co=cooccur(det.events); renderCounters(cn, co); drawTimeline(det.events, run.duration);
   const und=det.events.filter(e=>e.kind==='undet');
   setStatus(`${run.reachedLimit? 'انتهت المدة المحددة. ' : ''}انتهى التحليل: ${fmtDur(run.duration)}${und.length? ` · فترات غير قابلة للتحديد: ${und.length}` : ''}.`);
-  $('#saveSummary').textContent = `رُصد: ${BKEYS.map(b=>`${BEH[b].name} ${cn[b]}`).join('، ')}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
+  $('#saveSummary').textContent = `رُصد منفردًا: ${BKEYS.map(b=>`${BEH[b].name} ${co.per[b].solo}`).join('، ')}. أفعال متزامنة: ${co.episodes.length}${co.episodes.length? ' ('+syncLine(co)+')':''}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
   $('#saveBox').hidden=false;
 }
 async function saveRun(){
@@ -869,6 +911,8 @@ function vReview(){
   const f=S.reviewFilter;
   let list=S.events.filter(e=>(f.session==='all'||e.sessionId===f.session)&&(f.beh==='all'||e.behavior===f.beh)&&(f.status==='all'||e.status===f.status));
   list=list.sort((a,b)=>{ const sa=sessionById(a.sessionId), sb=sessionById(b.sessionId); return ((sb?.date||'').localeCompare(sa?.date||'')) || a.start-b.start; });
+  const syncWith = new Map(); new Set(list.map(e=>e.sessionId)).forEach(sid=>{ cooccur(evOf(sid)).withMap.forEach((v,k)=>syncWith.set(k.id,v)); });
+  const syncTag = e => syncWith.has(e.id)? `<div><span class="pill p-sync">متزامن مع ${BKEYS.filter(b=>syncWith.get(e.id).has(b)).map(b=>BEH[b].name).join(' و')}</span></div>` : '';
   return `
   ${headBlock('مراجعة الأحداث','يعتمد الأخصائي كل حدث','النظام يقترح؛ لا يدخل حدث التقرير إلا بعد اعتماده. السياق يُكتب بصيغة «بعد…» لا «بسبب…»: المطلوب وصف ما سبق السلوك دون الجزم بالسبب.')}
   <div class="sheet row">
@@ -883,7 +927,7 @@ function vReview(){
     <td>${e.kind==='event'?stick(e.key):''}</td>
     <td data-l="السلوك"><span class="chip ${BEH[e.behavior].cls}">${BEH[e.behavior].name}</span></td>
     <td data-l="الوقت"><span class="num">${fmtT(e.start)} – ${fmtT(e.end)}</span></td>
-    <td data-l="التفاصيل" class="small">${e.kind==='undet'?'الحركة محجوبة أو خارج الإطار':esc(e.detail)}</td>
+    <td data-l="التفاصيل" class="small">${e.kind==='undet'?'الحركة محجوبة أو خارج الإطار':esc(e.detail)}${e.kind==='event'?syncTag(e):''}</td>
     <td data-l="العدد">${e.kind==='event'? (e.behavior==='clap'? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="عدد التصفيقات">` : `<span class="num">1</span>`) : '—'}</td>
     <td data-l="ما حدث قبله (السياق)">${e.kind==='event'?`<input type="text" class="ctx" data-ctx value="${esc(e.context)}" placeholder="بعد…" aria-label="السياق">`:''}</td>
     <td data-l="الحالة">${statusPill(e.status)}</td>
@@ -972,9 +1016,10 @@ function vIoa(){
   ${behaviorReportHTML(s,R)}`;
 }
 function behaviorRows(s,R){
-  return BKEYS.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event');
+  const co=cooccur(evOf(s.id));
+  return BKEYS.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event'); const cp=co.per[b];
     const extra = b==='raise'? (()=>{ const both=evs.filter(e=>/باليدين/.test(e.detail||'')).length; return `باليدين ${both}، بيد واحدة ${evs.length-both}`; })() : b==='clap'? `${evs.length} نوبة تصفيق` : '';
-    return {b, name:BEH[b].name, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall}; });
+    return {b, name:BEH[b].name, solo:cp.solo, sync:cp.sync, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall}; });
 }
 function behaviorReportText(s,R){
   const rows=behaviorRows(s,R), L=[];
@@ -984,11 +1029,14 @@ function behaviorReportText(s,R){
   L.push('(مخرجات النظام قبل مراجعة الأخصائي)');
   L.push('');
   for(const r of rows){
-    L.push(`${r.name}: النظام ${r.sys} مرة${r.extra? ' ('+r.extra+')':''}`);
+    L.push(`${r.name}: منفرد ${r.solo} · متزامن ${r.sync} · المجموع ${r.sys}${r.extra? ' ('+r.extra+')':''}`);
     L.push(`  أوقات النظام: ${r.times.length? r.times.join('، ') : '—'}`);
     if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} مرة${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
     else L.push('  الأخصائية: لم يُسجَّل عدّها بعد');
   }
+  const co=cooccur(evOf(s.id));
+  L.push(''); L.push(`الأفعال المتزامنة (خانة مستقلة): ${co.episodes.length}`);
+  co.episodes.forEach(x=>L.push(`  ${x.label} · ${fmtT(x.start)}–${fmtT(x.end)}${x.claps? ` · تصفيقات ${x.claps}`:''}`));
   const und=evOf(s.id).filter(e=>e.kind==='undet');
   L.push(''); L.push(`فترات غير قابلة للتحديد: ${und.length}${und.length? ' ('+und.map(e=>BEH[e.behavior].name+' '+fmtT(e.start)+'–'+fmtT(e.end)).join('، ')+')':''}`);
   return L.join('\n');
@@ -998,9 +1046,10 @@ function behaviorReportHTML(s,R){
   return `<div class="sheet stack">
     <div class="row" style="justify-content:space-between"><div class="stack" style="gap:2px"><h2>تقرير كل سلوك</h2><p class="small muted">مخرجات النظام كما رصدها قبل مراجعة الأخصائي، لمقارنتها بتقرير الأخصائية للجلسة نفسها.</p></div>
     <div class="row"><button class="btn primary" id="br_copy" type="button">نسخ التقرير لإرساله</button><button class="btn" id="br_csv" type="button">تنزيل CSV</button></div></div>
-    <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>عدّ النظام</th><th>أوقات النظام</th><th>عدّ الأخصائية</th><th>اتفاق العدّ</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:320px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
+    <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>أوقات النظام</th><th>عدّ الأخصائية (المجموع)</th><th>اتفاق العدّ</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="num">${r.solo}</td><td class="num">${r.sync}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:300px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
     </tbody></table></div>
+    ${(()=>{ const co=cooccur(evOf(s.id)); return `<div class="stack" style="gap:6px"><h3>الأفعال المتزامنة <span class="pill p-sync num">${co.episodes.length}</span></h3>${co.episodes.length? `<div class="tbl-wrap"><table><thead><tr><th>السلوكان معًا</th><th>الوقت</th><th>التصفيقات داخله</th></tr></thead><tbody>${co.episodes.map(x=>`<tr><td>${x.label}</td><td class="num">${fmtT(x.start)} – ${fmtT(x.end)}</td><td class="num">${x.claps||'—'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small muted">لم يحدث سلوكان في الوقت نفسه في هذه الجلسة.</p>'}</div>`; })()}
     <textarea id="br_text" class="out" hidden readonly></textarea>
   </div>`;
 }
@@ -1017,8 +1066,9 @@ afterRender.ioa = ()=>{
   const sel=$('#i_s'); if(!sel) return;
   $('#br_copy').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); copyText(behaviorReportText(s,sessionIOA(s)), $('#br_text')); });
   $('#br_csv').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); const rows=behaviorRows(s,sessionIOA(s));
-    const out=[['experiment','file_number','session','date','duration_s','behavior','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1']];
-    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),r.total==null?'':r.total.toFixed(1),r.precision==null?'':r.precision.toFixed(1),r.recall==null?'':r.recall.toFixed(1),r.f1==null?'':r.f1.toFixed(1)]));
+    const out=[['experiment','file_number','session','date','duration_s','behavior','solo','simultaneous','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1']];
+    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.solo,r.sync,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),r.total==null?'':r.total.toFixed(1),r.precision==null?'':r.precision.toFixed(1),r.recall==null?'':r.recall.toFixed(1),r.f1==null?'':r.f1.toFixed(1)]));
+    cooccur(evOf(s.id)).episodes.forEach(x=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,'متزامن: '+x.label,'','',1,fmtT(x.start)+'-'+fmtT(x.end),'','','','','','']));
     saveFile(`behavior-report-${fmtFile(S.child.fileNo)}-${s.date}.csv`, '\ufeff'+out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n')); });
   sel.addEventListener('change',()=>{ S.ioaSession=sel.value; render(); });
   $('#ioaForm').addEventListener('submit', async e=>{ e.preventDefault(); const s=sessionById(S.ioaSession); const spec={};
@@ -1038,7 +1088,8 @@ function weekData(){
   const undet=sum(S.events.filter(e=>e.kind==='undet' && ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start));
   const ctx=S.events.filter(e=>ok(e) && e.context && ses.some(s=>s.id===e.sessionId)).map(e=>({behavior:BEH[e.behavior].name, date:sessionById(e.sessionId).date, time:fmtT(e.start), context:e.context, detail:e.detail}));
   const raiseDur=S.events.filter(e=>e.behavior==='raise'&&ok(e)&&ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start);
-  return {start, days, ses, per, hours, undet, ctx, raiseDur};
+  const co=mergeCo(ses.map(x=>cooccur(evOf(x.id).filter(ok))));
+  return {start, days, ses, per, hours, undet, ctx, raiseDur, co};
 }
 function barChart(vals, days, color, title){
   const mx=Math.max(4, ...vals); const step = mx<=8?2: mx<=20?5:10; const top=Math.ceil(mx/step)*step;
@@ -1060,9 +1111,10 @@ function vReport(){
     <span class="small muted" style="align-self:flex-end">${D.ses.length} جلسة · ملاحظة ${fmtDur(hrs*3600)}</span>
   </div>
   <div class="grid g3">${BKEYS.map(b=>{ const tot=sum(D.per[b]); return `<div class="sheet stack chart"><div class="row" style="justify-content:space-between"><h3 class="${BEH[b].cls}" style="color:var(${BEH[b].varc})">${BEH[b].name}</h3><span class="num small">${tot} مرة</span></div>${barChart(D.per[b],D.days,`var(${BEH[b].varc})`,`${BEH[b].name} في كل يوم`)}</div>`; }).join('')}</div>
-  <div class="sheet flush"><div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>المجموع</th><th>المعدل بالساعة</th><th>أعلى يوم</th><th>ملاحظة</th></tr></thead><tbody>
-  ${BKEYS.map(b=>{ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); return `<tr><td><span class="chip ${BEH[b].cls}">${BEH[b].name}</span></td><td class="num">${tot}</td><td class="num">${hrs? (tot/hrs).toFixed(1) : '—'}</td><td class="num">${mx? D.days[di]+' ('+mx+')' : '—'}</td><td class="small"></td></tr>`; }).join('')}
-  <tr><td class="muted small">غير قابل للتحديد</td><td class="num" colspan="4">${fmtDur(D.undet)} من زمن الملاحظة</td></tr>
+  <div class="sheet flush"><div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>المعدل بالساعة</th><th>أعلى يوم</th></tr></thead><tbody>
+  ${BKEYS.map(b=>{ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); const p=D.co.per[b]; return `<tr><td><span class="chip ${BEH[b].cls}">${BEH[b].name}</span></td><td class="num">${p.solo}</td><td class="num">${p.sync}</td><td class="num">${tot}</td><td class="num">${hrs? (tot/hrs).toFixed(1) : '—'}</td><td class="num">${mx? D.days[di]+' ('+mx+')' : '—'}</td></tr>`; }).join('')}
+  <tr><td><span class="pill p-sync">أفعال متزامنة</span></td><td class="small" colspan="2">${syncLine(D.co)}</td><td class="num">${D.co.episodes.length}</td><td class="num">${hrs? (D.co.episodes.length/hrs).toFixed(1) : '—'}</td><td></td></tr>
+  <tr><td class="muted small">غير قابل للتحديد</td><td class="num" colspan="5">${fmtDur(D.undet)} من زمن الملاحظة</td></tr>
   </tbody></table></div></div>
   <div class="sheet stack">
     <div class="row" style="justify-content:space-between"><h2>نص التقرير</h2><div class="row"><button class="btn primary" id="r_gen">صياغة من المصادر</button><button class="btn" id="r_csv">تنزيل الأحداث CSV</button><button class="btn" id="r_json">تنزيل كل البيانات JSON</button></div></div>
@@ -1085,7 +1137,7 @@ async function genReport(){
   if(!sample){ out.value=localDraft(); msg.textContent='مسودة مبنية من الأرقام والسياقات المعتمدة فقط. راجعيها وأكمليها بتفسير الأخصائية.'; return; }
   const D=weekData();
   const data={ file_number:fmtFile(S.child.fileNo), participant:S.child.code||'—', week_start:D.start, sessions:D.ses.length, observed_hours:+D.hours.toFixed(2), unclear_minutes:+(D.undet/60).toFixed(1),
-    totals:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, sum(D.per[b])])), daily:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, Object.fromEntries(D.days.map((d,i)=>[d,D.per[b][i]]))])),
+    totals:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, sum(D.per[b])])), solo_vs_simultaneous:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, {منفرد:D.co.per[b].solo, متزامن:D.co.per[b].sync}])), simultaneous_actions:{count:D.co.episodes.length, by_combination:D.co.combos}, daily:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, Object.fromEntries(D.days.map((d,i)=>[d,D.per[b][i]]))])),
     rate_per_hour:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, D.hours? +(sum(D.per[b])/D.hours).toFixed(2) : null])), contexts:D.ctx };
   const sources=S.sources.map((s,i)=>`[م${i+1}] ${s.title}\n${s.text}`).join('\n\n');
   const prompt=`أنت مساعد صياغة تقارير لأخصائي تحليل سلوك تطبيقي معتمد (BCBA). اكتب مسودة تقرير أسبوعي بالعربية الفصحى الواضحة.
@@ -1123,7 +1175,8 @@ function localDraft(){
   L.push('');
   L.push('النتائج');
   for(const b of BKEYS){ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx);
-    L.push(`- ${BEH[b].name}: ${tot} مرة${D.hours? `، بمعدل ${(tot/D.hours).toFixed(1)} مرة في الساعة`:''}${mx? `، وأعلى يوم ${D.days[di]} (${mx} مرة)`:''}.`); }
+    L.push(`- ${BEH[b].name}: ${tot} مرة (منفرد ${D.co.per[b].solo}، متزامن ${D.co.per[b].sync})${D.hours? `، بمعدل ${(tot/D.hours).toFixed(1)} مرة في الساعة`:''}${mx? `، وأعلى يوم ${D.days[di]} (${mx} مرة)`:''}.`); }
+  L.push(`- أفعال متزامنة (خانة مستقلة): ${D.co.episodes.length}${D.co.episodes.length? ' — '+syncLine(D.co):''}.`);
   L.push('');
   L.push('السياقات الملاحظة (ما حدث قبل السلوك، دون جزم بالسبب)');
   if(D.ctx.length) D.ctx.forEach(c=>L.push(`- ${c.date} ${c.time}: ${c.behavior}، بعد ${c.context.replace(/^بعد\s*/,'')}`));
@@ -1195,6 +1248,8 @@ function vMethod(){
     <p>يُعدّ الاتفاق مقبولًا عند ${IOA_OK}% فأكثر، وهو الحد الشائع في أبحاث تحليل السلوك التطبيقي، ويُفضَّل ${IOA_GOOD}% فأكثر.</p>
     <p>ولأن النظام مصنِّف آلي، تُحسب أيضًا مقاييس تعلّم الآلة بمطابقة كل حدث بشري بحدث آلي ضمن ±${TOL} ثانية:</p>
     <div class="formula">Precision = TP ÷ (TP + FP)   Recall = TP ÷ (TP + FN)   F1 = 2PR ÷ (P + R)</div>
+    <h2>الأفعال المتزامنة</h2>
+    <p>يُعدّ الفعل متزامنًا إذا تداخل زمنيًا مع سلوك آخر (بهامش ${SYNC_TOL} ثانية). يُفصل في التقارير بين العدّ المنفرد والعدّ المتزامن لكل سلوك، وتُعدّ الأفعال المتزامنة في خانة مستقلة حسب تركيبتها (مثل: رفع اليد + التصفيق).</p>
     <h2>6. الإنسان صاحب القرار</h2>
     <p>كل حدث آلي يُحفظ «مقترحًا». لا يدخل التقرير إلا ما اعتمده الأخصائي. السياق يُكتب بصيغة «بعد» لتجنّب الاستنتاج السببي غير المثبت.</p>
     <h2>7. الخصوصية</h2>
