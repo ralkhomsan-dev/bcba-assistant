@@ -198,6 +198,9 @@ td .ctx{min-width:170px}
   table.cards td .row{flex-wrap:wrap!important}
   table.cards td .btn.sm{padding:7px 16px;font-size:.9rem}
 }
+.swatch{width:24px;height:24px;border-radius:50%;border:1px solid var(--line);display:inline-block;flex:none;background-image:repeating-linear-gradient(45deg,var(--rule) 0 4px,transparent 4px 8px)}
+.stage.picking{cursor:crosshair;outline:3px solid var(--accent);outline-offset:2px}
+.mk-box{border:1px dashed var(--line);border-radius:8px;padding:10px 12px}
 .cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:5rem;font-weight:700;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6);pointer-events:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -630,7 +633,7 @@ function vBehaviors(){
 }
 
 /* SESSION */
-function consentBlock(){ const c=S.child; if(!c) return 'افتحي ملف طفل أولًا.'; if(c.kind==='volunteer') return ''; return c.consentGuardian? '' : 'لا يبدأ الرصد قبل تسجيل موافقة ولي الأمر في ملف الطفل.'; }
+function consentBlock(){ const c=S.child; if(!c) return 'افتحي ملف طفل أولًا.'; if(c.markerOn && !c.marker) return 'حدّدي لون علامة الطفل أولًا، أو ألغي خيار التتبع بالعلامة.'; if(c.kind==='volunteer') return ''; return c.consentGuardian? '' : 'لا يبدأ الرصد قبل تسجيل موافقة ولي الأمر في ملف الطفل.'; }
 let pose=null, poseLoading=null, lastResults=null, run=null, camStream=null, wakeLock=null;
 window.addEventListener('beforeunload', e=>{ if(run && (run.active || !$('#saveBox')?.hidden)){ e.preventDefault(); e.returnValue=''; } });
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('تعذّر تحميل '+src)); document.head.appendChild(s); }); }
@@ -646,6 +649,97 @@ function loadPose(){
   })();
   poseLoading.catch(()=>{ poseLoading=null; });
   return poseLoading;
+}
+/* Target-child marker: the child wears a brightly coloured vest/band; the system tracks only that person. */
+const MK = { cv:null, ctx:null, crop:null, cctx:null };
+const useMarker = () => !!(S.child && S.child.markerOn);
+function rgb2hsv(r,g,b){ r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn; let h=0; if(d){ if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h*=60; if(h<0) h+=360; } return {h, s: mx? d/mx : 0, v: mx}; }
+function colorMatch(x, t){ const dh=Math.min(Math.abs(x.h-t.h), 360-Math.abs(x.h-t.h)); return dh<=20 && x.s>=Math.max(0.22, t.s*0.5) && x.v>=Math.max(0.18, t.v*0.4); }
+function findMarker(src, W, H, tgt){
+  const w=160, h=Math.max(1,Math.round(160*H/W));
+  if(!MK.cv){ MK.cv=document.createElement('canvas'); MK.ctx=MK.cv.getContext('2d',{willReadFrequently:true}); }
+  MK.cv.width=w; MK.cv.height=h; MK.ctx.drawImage(src,0,0,w,h);
+  const d=MK.ctx.getImageData(0,0,w,h).data, cs=4, gw=Math.ceil(w/cs), gh=Math.ceil(h/cs), cnt=new Uint16Array(gw*gh);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(colorMatch(rgb2hsv(d[i],d[i+1],d[i+2]),tgt)) cnt[((y/cs)|0)*gw+((x/cs)|0)]++; }
+  const on=c=>cnt[c]>=cs*cs*0.3, seen=new Uint8Array(gw*gh), blobs=[];
+  for(let c=0;c<gw*gh;c++){ if(seen[c]||!on(c)) continue; const q=[c]; seen[c]=1; let n=0,x0=1e9,y0=1e9,x1=-1,y1=-1,sx=0,sy=0;
+    while(q.length){ const k=q.pop(); n++; const gx=k%gw, gy=(k/gw)|0; x0=Math.min(x0,gx); x1=Math.max(x1,gx); y0=Math.min(y0,gy); y1=Math.max(y1,gy); sx+=gx; sy+=gy;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=gx+dx, ny=gy+dy; if(nx<0||ny<0||nx>=gw||ny>=gh) continue; const nk=ny*gw+nx; if(!seen[nk]&&on(nk)){ seen[nk]=1; q.push(nk); } } }
+    blobs.push({n,x0,y0,x1,y1,cx:sx/n,cy:sy/n}); }
+  blobs.sort((a,b)=>b.n-a.n); const best=blobs[0];
+  if(!best || best.n<2) return null;
+  return { cx:(best.cx+0.5)*cs/w, cy:(best.cy+0.5)*cs/h, x0:best.x0*cs/w, y0:best.y0*cs/h, x1:(best.x1+1)*cs/w, y1:(best.y1+1)*cs/h, cells:best.n, rival: blobs[1] && blobs[1].n>=best.n*0.5 };
+}
+async function estimate(src, W, H){
+  const tgt = useMarker()? S.child.marker : null;
+  if(!tgt){ lastResults=null; await pose.send({image:src}); return {lm: lastResults&&lastResults.poseLandmarks, state:'none'}; }
+  const mk=findMarker(src,W,H,tgt);
+  if(!mk) return {lm:null, mk:null, state:'missing'};
+  const half=Math.min(W/2, Math.max((mk.x1-mk.x0)*W*1.8, H*0.28));
+  const x0=Math.max(0, Math.round(mk.cx*W-half)), x1=Math.min(W, Math.round(mk.cx*W+half)), cw=Math.max(16, x1-x0);
+  if(!MK.crop){ MK.crop=document.createElement('canvas'); MK.cctx=MK.crop.getContext('2d'); }
+  MK.crop.width=cw; MK.crop.height=H; MK.cctx.drawImage(src, x0,0,cw,H, 0,0,cw,H);
+  lastResults=null; await pose.send({image:MK.crop});
+  const raw=lastResults&&lastResults.poseLandmarks; if(!raw) return {lm:null, mk, state:'nopose', x0, x1};
+  const lm=raw.map(p=>({x:(p.x*cw+x0)/W, y:p.y, z:p.z, visibility:p.visibility}));
+  const P=i=>lm[i], vis=i=>(P(i).visibility??1)>.5, mx=mk.cx*W, my=mk.cy*H;
+  const shW=Math.hypot((P(11).x-P(12).x)*W,(P(11).y-P(12).y)*H)||H*0.1;
+  const xs=[P(11).x,P(12).x]; if(vis(23)&&vis(24)) xs.push(P(23).x,P(24).x);
+  const tx0=Math.min(...xs)*W-0.3*shW, tx1=Math.max(...xs)*W+0.3*shW, ty0=Math.min(P(11).y,P(12).y)*H-0.4*shW;
+  const ty1=(vis(23)&&vis(24)? Math.max(P(23).y,P(24).y)*H : Math.max(P(11).y,P(12).y)*H+1.6*shW)+0.3*shW;
+  const inTorso = mx>=tx0 && mx<=tx1 && my>=ty0 && my<=ty1;
+  const nearWrist = [15,16].some(i=>(P(i).visibility??1)>.4 && Math.hypot(P(i).x*W-mx, P(i).y*H-my) < 0.7*shW);
+  if(!inTorso && !nearWrist) return {lm:null, mk, state:'mismatch', x0, x1};
+  return {lm, mk, state:'ok', x0, x1};
+}
+function trackStat(res){ if(!run || !run.mk || !run.mk.used) return; run.mk.frames++; run.mk[res.state]=(run.mk[res.state]||0)+1; }
+const markerStatus = res => !useMarker()? '' : res.state==='ok'? ' · علامة الطفل ظاهرة' : res.state==='missing'? ' · العلامة غير ظاهرة: لا يُحسب شيء' : ' · لم يُتأكد من الطفل: لا يُحسب شيء';
+function drawMarker(res, W, H){
+  if(!res || !useMarker()) return; const cv=$('#ovl'); if(!cv) return; const g=cv.getContext('2d');
+  const css=getComputedStyle(document.documentElement), acc=css.getPropertyValue('--accent').trim()||'#1D5C63', bad=css.getPropertyValue('--bad').trim()||'#b23';
+  if(res.x0!=null){ g.save(); g.setLineDash([8,8]); g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=2; g.strokeRect(res.x0+1,1,res.x1-res.x0-2,H-2); g.restore(); }
+  if(res.mk){ g.lineWidth=Math.max(3,W/200); g.strokeStyle= res.state==='ok'? acc : bad; g.strokeRect(res.mk.x0*W, res.mk.y0*H, (res.mk.x1-res.mk.x0)*W, (res.mk.y1-res.mk.y0)*H); }
+  if(res.state!=='ok'){ g.fillStyle=bad; g.font=`600 ${Math.max(14,W/34)}px sans-serif`; g.textAlign='center'; g.fillText(res.state==='missing'? 'العلامة غير ظاهرة' : 'لم يُتأكد من الطفل', W/2, H*0.08); }
+}
+const mkCss = () => S.child && S.child.marker? `rgb(${S.child.marker.r},${S.child.marker.g},${S.child.marker.b})` : '';
+let picking=null;
+async function startPick(kind, file){
+  if(run && run.active) return;
+  const v=$('#vid'); $('#stageEmpty').hidden=true; $('#saveBox').hidden=true;
+  if(kind==='cam'){
+    if(!navigator.mediaDevices?.getUserMedia){ setStatus('الكاميرا غير متاحة في هذا المتصفح. اختاري اللون من فيديو.'); return; }
+    try{ if(camStream){ camStream.getTracks().forEach(t=>t.stop()); } camStream = await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:{ideal:($('#s_face')?.value||'environment')}}, audio:false}); }
+    catch(err){ setStatus('تعذّر تشغيل الكاميرا لتحديد اللون. يمكنك اختيار اللون من فيديو.'); $('#stageEmpty').hidden=false; return; }
+    v.src=''; v.srcObject=camStream; await v.play();
+  } else {
+    const url=URL.createObjectURL(file); v.srcObject=null; v.src=url;
+    const ok=await new Promise(r=>{ v.onloadeddata=()=>r(true); v.onerror=()=>r(false); });
+    if(!ok){ setStatus('المتصفح لا يقرأ صيغة هذا الفيديو.'); $('#stageEmpty').hidden=false; return; }
+    try{ await seek(v, Math.min(1, (v.duration||2)/2)); }catch(e){}
+  }
+  const cv=$('#ovl'); cv.width=v.videoWidth; cv.height=v.videoHeight; cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+  picking={kind}; $('#stage').classList.add('picking');
+  setStatus('اضغطي على العلامة الملوّنة في الصورة (الصدرية أو السوار) لحفظ لونها.');
+}
+async function pickAt(e){
+  if(!picking) return; const v=$('#vid'), st=$('#stage'); const r=st.getBoundingClientRect(), vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
+  const sc=Math.min(r.width/vw, r.height/vh), ox=(r.width-vw*sc)/2, oy=(r.height-vh*sc)/2;
+  const px=Math.round((e.clientX-r.left-ox)/sc), py=Math.round((e.clientY-r.top-oy)/sc); if(px<0||py<0||px>=vw||py>=vh) return;
+  const c=document.createElement('canvas'); c.width=vw; c.height=vh; const g=c.getContext('2d',{willReadFrequently:true}); g.drawImage(v,0,0,vw,vh);
+  const x0=Math.max(0,px-5), y0=Math.max(0,py-5), d=g.getImageData(x0,y0,Math.min(11,vw-x0),Math.min(11,vh-y0)).data; let R=0,G=0,B=0,n=0;
+  for(let i=0;i<d.length;i+=4){ R+=d[i]; G+=d[i+1]; B+=d[i+2]; n++; } R=Math.round(R/n); G=Math.round(G/n); B=Math.round(B/n);
+  const hsv=rgb2hsv(R,G,B);
+  if(hsv.s<0.3 || hsv.v<0.25){ setStatus('هذا اللون باهت أو قريب من الأبيض/الأسود/الرمادي، فيلتبس بالملابس والجدران. استخدمي علامة بلون زاهٍ (أخضر فسفوري، برتقالي، وردي) ثم اضغطي عليها.'); return; }
+  const marker={r:R,g:G,b:B,h:+hsv.h.toFixed(1),s:+hsv.s.toFixed(3),v:+hsv.v.toFixed(3)};
+  const test=findMarker(v,vw,vh,marker);
+  S.child.marker=marker; S.child.markerOn=true; const rec={...S.child}; delete rec.id;
+  try{ await Store.set('children', S.childId, rec); }catch(err){ toast('تعذّر حفظ اللون: '+(err.message||err.code)); }
+  picking=null; st.classList.remove('picking');
+  const cv=$('#ovl'); const og=cv.getContext('2d'); og.clearRect(0,0,cv.width,cv.height);
+  if(test){ drawMarker({mk:test, state:'ok'}, vw, vh); }
+  if(camStream && !(run&&run.active)){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  $('#mkSwatch').style.background=mkCss(); $('#mkText').textContent='لون العلامة محفوظ في ملف الطفل'; $('#s_mk').checked=true; $('#mkRow').hidden=false;
+  setStatus(test? (test.rival? 'حُفظ اللون، لكن اللون نفسه ظاهر في أكثر من مكان في الصورة. أبعدي الأشياء بنفس اللون أو اختاري علامة بلون آخر.' : 'حُفظ لون العلامة. النظام سيتتبع الطفل الذي يلبسها فقط.') : 'حُفظ اللون، لكن لم يُعثر على العلامة بوضوح. قرّبي الكاميرا أو حسّني الإضاءة ثم جرّبي.');
 }
 const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[15,19],[16,20],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
 
@@ -752,6 +846,15 @@ function vSession(){
         <label class="f">الكاميرا<select id="s_face"><option value="environment">الخلفية (لتصوير الطفل)</option><option value="user">الأمامية</option></select></label>
         <label class="f">معدل التحليل<select id="s_fps"><option value="10">10 إطارات/ث (أسرع)</option><option value="15" selected>15 إطارًا/ث (موصى به)</option><option value="25">25 إطارًا/ث (أدق للتصفيق)</option></select></label>
         <label class="f">مدة الرصد بالكاميرا<select id="s_limit"><option value="60">دقيقة</option><option value="120" selected>دقيقتان</option><option value="180">3 دقائق</option><option value="300">5 دقائق</option><option value="600">10 دقائق</option><option value="0">بدون حد (إيقاف يدوي)</option></select></label>
+        <div class="mk-box stack" style="gap:8px">
+          <label class="check"><input type="checkbox" id="s_mk" ${S.child.markerOn?'checked':''}> تتبّع الطفل بعلامة لونية (صدرية أو سوار) عند وجود أطفال آخرين</label>
+          <div class="row" id="mkRow" ${S.child.markerOn?'':'hidden'} style="gap:8px">
+            <span class="swatch" id="mkSwatch" style="${S.child.marker? 'background:'+mkCss():''}"></span>
+            <span class="small" id="mkText">${S.child.marker? 'لون العلامة محفوظ في ملف الطفل' : 'لم يُحدَّد لون العلامة بعد'}</span>
+            <button class="btn sm" type="button" id="mkPickCam">تحديد اللون من الكاميرا</button>
+            <label class="btn sm" for="mkPickFile" style="cursor:pointer">من فيديو</label><input type="file" id="mkPickFile" accept="video/*" hidden>
+          </div>
+        </div>
         <div class="row">
           <label class="btn primary" for="s_file" style="cursor:pointer">اختيار فيديو</label>
           <input type="file" id="s_file" accept="video/*" hidden>
@@ -805,6 +908,10 @@ afterRender.session = ()=>{
   renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60);
   $('#s_file').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) analyzeFile(f); e.target.value=''; });
   $('#s_cam').addEventListener('click', startCamera);
+  $('#stage').addEventListener('click', pickAt);
+  $('#mkPickCam').addEventListener('click', ()=>startPick('cam'));
+  $('#mkPickFile').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) startPick('file', f); e.target.value=''; });
+  $('#s_mk').addEventListener('change', async e=>{ S.child.markerOn=e.target.checked; $('#mkRow').hidden=!e.target.checked; const rec={...S.child}; delete rec.id; try{ await Store.set('children', S.childId, rec); }catch(err){} });
   $('#s_stop').addEventListener('click', ()=>{ if(run) run.stop=true; });
   $('#s_save').addEventListener('click', saveRun);
   $('#s_discard').addEventListener('click', ()=>{ run=null; $('#saveBox').hidden=true; renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60); setStatus('أُلغيت النتائج.'); });
@@ -827,16 +934,16 @@ async function analyzeFile(file){
   try{ await ensurePose(); }catch(e){ return; }
   const W=v.videoWidth, H=v.videoHeight, dur=v.duration, fps=+$('#s_fps').value, step=1/fps;
   const det=new Detector(W,H);
-  run={active:true, stop:false, det, duration:dur, source:'video', fps, fileName:file.name};
+  picking=null; $('#stage').classList.remove('picking');
+  run={active:true, stop:false, det, duration:dur, source:'video', fps, fileName:file.name, mk:{used:useMarker(), frames:0}};
   $('#s_stop').hidden=false; $('#s_cam').disabled=true;
   const t0=performance.now(); let n=0;
   for(let t=0; t<dur && !run.stop; t+=step){
-    await seek(v,t); lastResults=null;
-    await pose.send({image:v});
-    const lm = lastResults && lastResults.poseLandmarks;
+    await seek(v,t);
+    const res = await estimate(v,W,H); const lm=res.lm; trackStat(res);
     det.update(t, lm); n++;
-    if(n%3===0){ drawOverlay(lm,W,H); renderCounters(det.counts(), cooccur(det.events)); $('#prog').style.width=(t/dur*100)+'%';
-      const sp=(t/((performance.now()-t0)/1000)); setStatus(`يحلّل ${fmtT(t)} من ${fmtT(dur)} · سرعة ${sp.toFixed(1)}×`);
+    if(n%3===0){ drawOverlay(lm,W,H); drawMarker(res,W,H); renderCounters(det.counts(), cooccur(det.events)); $('#prog').style.width=(t/dur*100)+'%';
+      const sp=(t/((performance.now()-t0)/1000)); setStatus(`يحلّل ${fmtT(t)} من ${fmtT(dur)} · سرعة ${sp.toFixed(1)}×${markerStatus(res)}`);
       if(n%15===0) drawTimeline(det.events, dur); }
   }
   const endT = run.stop ? v.currentTime : dur;
@@ -856,16 +963,17 @@ async function startCamera(){
   try{ await ensurePose(); }catch(e){ stopCamera(); return; }
   const W=v.videoWidth, H=v.videoHeight; const det=new Detector(W,H);
   const limit=+$('#s_limit').value||0;
-  run={active:true, stop:false, det, source:'camera', fps:null, limit}; $('#s_stop').hidden=false; $('#s_cam').disabled=true;
+  picking=null; $('#stage').classList.remove('picking');
+  run={active:true, stop:false, det, source:'camera', fps:null, limit, mk:{used:useMarker(), frames:0}}; $('#s_stop').hidden=false; $('#s_cam').disabled=true;
   const stage=$('#stage'); const cd=document.createElement('div'); cd.className='cd'; stage.appendChild(cd);
   for(let k=5;k>0 && !run.stop;k--){ cd.textContent=k; setStatus('يبدأ الرصد بعد '+k+' ث… خذي مكانك أمام الكاميرا والجسم كامل في الصورة'); await new Promise(r=>setTimeout(r,1000)); }
   cd.remove();
   const t0=performance.now(); let n=0, reachedLimit=false;
   while(!run.stop){
-    await pose.send({image:v}); const t=(performance.now()-t0)/1000; const lm=lastResults&&lastResults.poseLandmarks;
+    const res=await estimate(v,W,H); const t=(performance.now()-t0)/1000; const lm=res.lm; trackStat(res);
     if(limit && t>=limit){ reachedLimit=true; break; }
-    det.update(t,lm); drawOverlay(lm,W,H); n++;
-    if(n%5===0 || n===1){ renderCounters(det.counts(), cooccur(det.events)); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو`); drawTimeline(det.events, Math.max(limit||60,t)); }
+    det.update(t,lm); drawOverlay(lm,W,H); drawMarker(res,W,H); n++;
+    if(n%5===0 || n===1){ renderCounters(det.counts(), cooccur(det.events)); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو${markerStatus(res)}`); drawTimeline(det.events, Math.max(limit||60,t)); }
     await new Promise(r=>requestAnimationFrame(r));
   }
   run.reachedLimit=reachedLimit;
@@ -877,13 +985,15 @@ function finishRun(){
   const det=run.det, cn=det.counts(), co=cooccur(det.events); renderCounters(cn, co); drawTimeline(det.events, run.duration);
   const und=det.events.filter(e=>e.kind==='undet');
   setStatus(`${run.reachedLimit? 'انتهت المدة المحددة. ' : ''}انتهى التحليل: ${fmtDur(run.duration)}${und.length? ` · فترات غير قابلة للتحديد: ${und.length}` : ''}.`);
-  $('#saveSummary').textContent = `رُصد منفردًا: ${BKEYS.map(b=>`${BEH[b].name} ${co.per[b].solo}`).join('، ')}. أفعال متزامنة: ${co.episodes.length}${co.episodes.length? ' ('+syncLine(co)+')':''}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
+  const mkPct = run.mk && run.mk.used && run.mk.frames? Math.round(100*(run.mk.ok||0)/run.mk.frames) : null;
+  $('#saveSummary').textContent = (mkPct!=null? `تتبّع بالعلامة: الطفل محدَّد في ${mkPct}% من الإطارات، وما عداها سُجّل «غير قابل للتحديد». ` : '') + `رُصد منفردًا: ${BKEYS.map(b=>`${BEH[b].name} ${co.per[b].solo}`).join('، ')}. أفعال متزامنة: ${co.episodes.length}${co.episodes.length? ' ('+syncLine(co)+')':''}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
   $('#saveBox').hidden=false;
 }
 async function saveRun(){
   if(!run) return; const btn=$('#s_save'); btn.disabled=true;
   const id=uid();
-  const ses={ id, childId:S.childId, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), clapTimes:run.det.clapTimes.map(x=>+x.toFixed(2)), spec:{} };
+  const mkInfo = run.mk && run.mk.used? {used:true, color:S.child.marker, frames:run.mk.frames, ok:run.mk.ok||0, missing:run.mk.missing||0, mismatch:(run.mk.mismatch||0)+(run.mk.nopose||0)} : null;
+  const ses={ id, childId:S.childId, marker:mkInfo, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), clapTimes:run.det.clapTimes.map(x=>+x.toFixed(2)), spec:{} };
   try{
     await Store.set('sessions', id, ses);
     for(const e of run.det.events){
@@ -1026,6 +1136,8 @@ function behaviorReportText(s,R){
   L.push('تقرير السلوكيات — '+EXP);
   L.push(`ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+S.child.code:''}`);
   L.push(`الجلسة: ${s.label} · ${s.date} · المدة ${fmtDur(s.duration)} · ${s.source==='camera'?'كاميرا مباشرة':'فيديو مسجّل'}`);
+  if(s.marker && s.marker.used) L.push(`تحديد الطفل: بعلامة لونية · الطفل محدَّد في ${s.marker.frames? Math.round(100*s.marker.ok/s.marker.frames):0}% من الإطارات (العلامة غير ظاهرة ${s.marker.missing}، لم يُتأكد ${s.marker.mismatch})`);
+  else L.push('تحديد الطفل: بدون علامة (يُفترض طفل واحد في الصورة)');
   L.push('(مخرجات النظام قبل مراجعة الأخصائي)');
   L.push('');
   for(const r of rows){
@@ -1248,6 +1360,8 @@ function vMethod(){
     <p>يُعدّ الاتفاق مقبولًا عند ${IOA_OK}% فأكثر، وهو الحد الشائع في أبحاث تحليل السلوك التطبيقي، ويُفضَّل ${IOA_GOOD}% فأكثر.</p>
     <p>ولأن النظام مصنِّف آلي، تُحسب أيضًا مقاييس تعلّم الآلة بمطابقة كل حدث بشري بحدث آلي ضمن ±${TOL} ثانية:</p>
     <div class="formula">Precision = TP ÷ (TP + FP)   Recall = TP ÷ (TP + FN)   F1 = 2PR ÷ (P + R)</div>
+    <h2>تحديد الطفل المستهدف</h2>
+    <p>عند وجود أكثر من طفل في المكان، يلبس الطفل المستهدف علامة بلون زاهٍ (صدرية أو سوار). تحدد الأخصائية لون العلامة بلمسة على الصورة، ثم يبحث النظام في كل إطار عن هذا اللون، ويحلّل الشخص الذي يلبسه فقط، ويتحقق أن العلامة تقع على جذعه أو عند معصمه. إذا لم تظهر العلامة أو لم يُتأكد أنها على الشخص نفسه، تُسجَّل الفترة «غير قابلة للتحديد» ولا يُحسب أي سلوك. لا يُستخدم الوجه ولا أي معرّف شخصي، وتُذكر في التقرير نسبة الإطارات التي حُدِّد فيها الطفل.</p>
     <h2>الأفعال المتزامنة</h2>
     <p>يُعدّ الفعل متزامنًا إذا تداخل زمنيًا مع سلوك آخر (بهامش ${SYNC_TOL} ثانية). يُفصل في التقارير بين العدّ المنفرد والعدّ المتزامن لكل سلوك، وتُعدّ الأفعال المتزامنة في خانة مستقلة حسب تركيبتها (مثل: رفع اليد + التصفيق).</p>
     <h2>6. الإنسان صاحب القرار</h2>
@@ -1257,7 +1371,7 @@ function vMethod(){
     <h2>8. الأخلاقيات</h2>
     <p>موافقة مستنيرة مكتوبة من ولي الأمر، وقبول الطفل بحسب قدرته مع التوقف عند الانزعاج، وإشراف أخصائية معتمدة، والالتزام بمدونة أخلاقيات مجلس اعتماد محللي السلوك (BACB). التجارب الأولى على متطوعين بالغين يؤدون الحركات.</p>
     <h2>9. حدود النموذج الأولي</h2>
-    <ul><li>التصفيق السريع قد يفوت عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>رصد «سلوك جديد» غير معرّف مسبقًا خارج نطاق هذا النموذج.</li></ul>
+    <ul><li>دون علامة لونية يفترض النظام طفلًا واحدًا في الصورة؛ ومع العلامة قد يُفقد التتبع إذا تشابه لون العلامة مع ملابس الآخرين أو خلفية الغرفة.</li><li>التصفيق السريع قد يفوت عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>رصد «سلوك جديد» غير معرّف مسبقًا خارج نطاق هذا النموذج.</li></ul>
     <h2>المراجع</h2>
     <ol class="refs">
       <li>Cooper, J. O., Heron, T. E., & Heward, W. L. (2020). <i>Applied Behavior Analysis</i> (3rd ed.). Pearson.</li>
