@@ -656,7 +656,7 @@ const useMarker = () => !!(S.child && S.child.markerOn);
 function rgb2hsv(r,g,b){ r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn; let h=0; if(d){ if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h*=60; if(h<0) h+=360; } return {h, s: mx? d/mx : 0, v: mx}; }
 function colorMatch(x, t){ const dh=Math.min(Math.abs(x.h-t.h), 360-Math.abs(x.h-t.h)); return dh<=20 && x.s>=Math.max(0.22, t.s*0.5) && x.v>=Math.max(0.18, t.v*0.4); }
 function findMarker(src, W, H, tgt){
-  const w=160, h=Math.max(1,Math.round(160*H/W));
+  const w=256, h=Math.max(1,Math.round(256*H/W)); // finer scan so a printed sticker is found, not only a vest
   if(!MK.cv){ MK.cv=document.createElement('canvas'); MK.ctx=MK.cv.getContext('2d',{willReadFrequently:true}); }
   MK.cv.width=w; MK.cv.height=h; MK.ctx.drawImage(src,0,0,w,h);
   const d=MK.ctx.getImageData(0,0,w,h).data, cs=4, gw=Math.ceil(w/cs), gh=Math.ceil(h/cs), cnt=new Uint16Array(gw*gh);
@@ -719,7 +719,7 @@ async function startPick(kind, file){
   }
   const cv=$('#ovl'); cv.width=v.videoWidth; cv.height=v.videoHeight; cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
   picking={kind}; $('#stage').classList.add('picking');
-  setStatus('اضغطي على العلامة الملوّنة في الصورة (الصدرية أو السوار) لحفظ لونها.');
+  setStatus('اضغطي على العلامة الملوّنة في الصورة (الستكر أو الصدرية) لحفظ لونها.');
 }
 async function pickAt(e){
   if(!picking) return; const v=$('#vid'), st=$('#stage'); const r=st.getBoundingClientRect(), vw=v.videoWidth, vh=v.videoHeight; if(!vw) return;
@@ -739,7 +739,7 @@ async function pickAt(e){
   if(test){ drawMarker({mk:test, state:'ok'}, vw, vh); }
   if(camStream && !(run&&run.active)){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   $('#mkSwatch').style.background=mkCss(); $('#mkText').textContent='لون العلامة محفوظ في ملف الطفل'; $('#s_mk').checked=true; $('#mkRow').hidden=false;
-  setStatus(test? (test.rival? 'حُفظ اللون، لكن اللون نفسه ظاهر في أكثر من مكان في الصورة. أبعدي الأشياء بنفس اللون أو اختاري علامة بلون آخر.' : 'حُفظ لون العلامة. النظام سيتتبع الطفل الذي يلبسها فقط.') : 'حُفظ اللون، لكن لم يُعثر على العلامة بوضوح. قرّبي الكاميرا أو حسّني الإضاءة ثم جرّبي.');
+  setStatus(test? (test.rival? 'حُفظ اللون، لكن اللون نفسه ظاهر في أكثر من مكان في الصورة. أبعدي الأشياء بنفس اللون أو اختاري علامة بلون آخر.' : 'حُفظ لون العلامة. النظام سيتتبع الطفل الذي يلبسها فقط.') : 'حُفظ اللون، لكن لم يُعثر على العلامة بوضوح. كبّري الستكر (12 سم على الأقل) أو قرّبي الكاميرا أو حسّني الإضاءة ثم جرّبي.');
 }
 const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[15,19],[16,20],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
 
@@ -847,12 +847,13 @@ function vSession(){
         <label class="f">معدل التحليل<select id="s_fps"><option value="10">10 إطارات/ث (أسرع)</option><option value="15" selected>15 إطارًا/ث (موصى به)</option><option value="25">25 إطارًا/ث (أدق للتصفيق)</option></select></label>
         <label class="f">مدة الرصد بالكاميرا<select id="s_limit"><option value="60">دقيقة</option><option value="120" selected>دقيقتان</option><option value="180">3 دقائق</option><option value="300">5 دقائق</option><option value="600">10 دقائق</option><option value="0">بدون حد (إيقاف يدوي)</option></select></label>
         <div class="mk-box stack" style="gap:8px">
-          <label class="check"><input type="checkbox" id="s_mk" ${S.child.markerOn?'checked':''}> تتبّع الطفل بعلامة لونية (صدرية أو سوار) عند وجود أطفال آخرين</label>
+          <label class="check"><input type="checkbox" id="s_mk" ${S.child.markerOn?'checked':''}> تتبّع الطفل بعلامة لونية (ستكر مطبوع أو صدرية) عند وجود أطفال آخرين</label>
           <div class="row" id="mkRow" ${S.child.markerOn?'':'hidden'} style="gap:8px">
             <span class="swatch" id="mkSwatch" style="${S.child.marker? 'background:'+mkCss():''}"></span>
             <span class="small" id="mkText">${S.child.marker? 'لون العلامة محفوظ في ملف الطفل' : 'لم يُحدَّد لون العلامة بعد'}</span>
             <button class="btn sm" type="button" id="mkPickCam">تحديد اللون من الكاميرا</button>
             <label class="btn sm" for="mkPickFile" style="cursor:pointer">من فيديو</label><input type="file" id="mkPickFile" accept="video/*" hidden>
+            <a class="btn sm ghost" href="stickers.pdf" target="_blank" rel="noopener">ستكرات للطباعة (PDF)</a>
           </div>
         </div>
         <div class="row">
@@ -1361,7 +1362,7 @@ function vMethod(){
     <p>ولأن النظام مصنِّف آلي، تُحسب أيضًا مقاييس تعلّم الآلة بمطابقة كل حدث بشري بحدث آلي ضمن ±${TOL} ثانية:</p>
     <div class="formula">Precision = TP ÷ (TP + FP)   Recall = TP ÷ (TP + FN)   F1 = 2PR ÷ (P + R)</div>
     <h2>تحديد الطفل المستهدف</h2>
-    <p>عند وجود أكثر من طفل في المكان، يلبس الطفل المستهدف علامة بلون زاهٍ (صدرية أو سوار). تحدد الأخصائية لون العلامة بلمسة على الصورة، ثم يبحث النظام في كل إطار عن هذا اللون، ويحلّل الشخص الذي يلبسه فقط، ويتحقق أن العلامة تقع على جذعه أو عند معصمه. إذا لم تظهر العلامة أو لم يُتأكد أنها على الشخص نفسه، تُسجَّل الفترة «غير قابلة للتحديد» ولا يُحسب أي سلوك. لا يُستخدم الوجه ولا أي معرّف شخصي، وتُذكر في التقرير نسبة الإطارات التي حُدِّد فيها الطفل.</p>
+    <p>عند وجود أكثر من طفل في المكان، يلبس الطفل المستهدف علامة بلون زاهٍ: ستكر مطبوع بلون واحد (12×12 سم على الأقل، على الصدر والظهر) أو صدرية. تحدد الأخصائية لون العلامة بلمسة على الصورة، ثم يبحث النظام في كل إطار عن هذا اللون، ويحلّل الشخص الذي يلبسه فقط، ويتحقق أن العلامة تقع على جذعه أو عند معصمه. إذا لم تظهر العلامة أو لم يُتأكد أنها على الشخص نفسه، تُسجَّل الفترة «غير قابلة للتحديد» ولا يُحسب أي سلوك. لا يُستخدم الوجه ولا أي معرّف شخصي، وتُذكر في التقرير نسبة الإطارات التي حُدِّد فيها الطفل.</p>
     <h2>الأفعال المتزامنة</h2>
     <p>يُعدّ الفعل متزامنًا إذا تداخل زمنيًا مع سلوك آخر (بهامش ${SYNC_TOL} ثانية). يُفصل في التقارير بين العدّ المنفرد والعدّ المتزامن لكل سلوك، وتُعدّ الأفعال المتزامنة في خانة مستقلة حسب تركيبتها (مثل: رفع اليد + التصفيق).</p>
     <h2>6. الإنسان صاحب القرار</h2>
