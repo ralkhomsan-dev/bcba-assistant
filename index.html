@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="مساعد ذكي لأخصائي تحليل السلوك (BCBA): رصد رفع اليد والتصفيق والقيام من الكرسي بالكاميرا داخل الجهاز دون تسجيل فيديو.">
+<meta name="description" content="مساعد ذكي لأخصائي تحليل السلوك (BCBA): رصد سلوكيات حركية معرّفة تشغيليًا (رفع اليد، التصفيق، القيام ومغادرة الكرسي، رفرفة اليدين، التأرجح، القفز، الدوران، المشي على أطراف الأصابع) بالكاميرا داخل الجهاز دون تسجيل فيديو.">
 <meta name="theme-color" content="#1D5C63">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>مساعد BCBA الذكي</title>
@@ -16,6 +16,7 @@
   --paper:#EFF2EF; --sheet:#FFFFFF; --ink:#14221E; --muted:#56665F; --line:#D5DDD8; --rule:#E7ECE9;
   --accent:#1D5C63; --accent-ink:#FFFFFF; --accent-soft:#E1EEEE;
   --b-raise:#2F5FC4; --b-clap:#B83B6B; --b-stand:#6E46AE;
+  --b-flap:#C4581C; --b-rock:#8B6B12; --b-jump:#23824A; --b-spin:#0E7490; --b-leave:#7A5230; --b-toe:#9F1239; --b-other:#6B7280;
   --good:#2C7A47; --warn:#A86A12; --bad:#B23A2C;
   --display:"Alexandria","IBM Plex Sans Arabic",system-ui,sans-serif;
   --body:"IBM Plex Sans Arabic",system-ui,"Segoe UI",Tahoma,sans-serif;
@@ -25,11 +26,13 @@
   --paper:#0E1513; --sheet:#151F1C; --ink:#E2EAE6; --muted:#97A7A0; --line:#2B3A35; --rule:#1F2B27;
   --accent:#6BB7BD; --accent-ink:#0B1714; --accent-soft:#1B3134;
   --b-raise:#86A6F2; --b-clap:#EC85A8; --b-stand:#B79BEA;
+  --b-flap:#F0A06A; --b-rock:#D9B95A; --b-jump:#74CF95; --b-spin:#5CC3DC; --b-leave:#C99A70; --b-toe:#F48FA6; --b-other:#A3AAB5;
   --good:#6CC28B; --warn:#E0A54A; --bad:#EE8576; color-scheme:dark }}
 :root[data-theme="dark"]{
   --paper:#0E1513; --sheet:#151F1C; --ink:#E2EAE6; --muted:#97A7A0; --line:#2B3A35; --rule:#1F2B27;
   --accent:#6BB7BD; --accent-ink:#0B1714; --accent-soft:#1B3134;
   --b-raise:#86A6F2; --b-clap:#EC85A8; --b-stand:#B79BEA;
+  --b-flap:#F0A06A; --b-rock:#D9B95A; --b-jump:#74CF95; --b-spin:#5CC3DC; --b-leave:#C99A70; --b-toe:#F48FA6; --b-other:#A3AAB5;
   --good:#6CC28B; --warn:#E0A54A; --bad:#EE8576; color-scheme:dark }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -109,6 +112,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:2px 9px;border-radius:20px;border:1px solid currentColor;white-space:nowrap}
 .chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .c-raise{color:var(--b-raise)} .c-clap{color:var(--b-clap)} .c-stand{color:var(--b-stand)}
+.c-flap{color:var(--b-flap)} .c-rock{color:var(--b-rock)} .c-jump{color:var(--b-jump)} .c-spin{color:var(--b-spin)} .c-leave{color:var(--b-leave)} .c-toe{color:var(--b-toe)} .c-other{color:var(--b-other)}
+.p-other{background:color-mix(in srgb,var(--b-other) 16%,transparent);color:var(--b-other)}
+.tgt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}
+.tgt-grid .check{font-size:.86rem}
 .pill{font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:4px;white-space:nowrap}
 .p-pending{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
 .p-approved{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
@@ -238,9 +245,60 @@ const BEH = {
     start:'الانتقال من وضع الجلوس.',
     end:'الوصول إلى الوقوف الكامل.',
     rule:'النهوض الجزئي ثم الجلوس لا يُحسب وقوفًا كاملًا. استمرار الشخص واقفًا يُحسب مرة واحدة، وتُحسب مرة جديدة بعد جلوسه ثم وقوفه مجددًا.',
-    tech:'زاوية الركبة (ورك–ركبة–كاحل) وارتفاع الورك عن الركبة منسوبًا إلى طول الجذع. جلوس: زاوية ≤ 120° أو الورك بمستوى الركبة تقريبًا (عند التصوير من الأمام). وقوف: زاوية ≥ 160° والورك أعلى من الركبة بنصف طول الجذع، لمدة 0.3 ثانية.'}
+    tech:'زاوية الركبة (ورك–ركبة–كاحل) وارتفاع الورك عن الركبة منسوبًا إلى طول الجذع. جلوس: زاوية ≤ 120° أو الورك بمستوى الركبة تقريبًا (عند التصوير من الأمام). وقوف: زاوية ≥ 160° والورك أعلى من الركبة بنصف طول الجذع، لمدة 0.3 ثانية.'},
+  flap:{name:'رفرفة اليدين', cls:'c-flap', varc:'--b-flap', unit:'نوبة', episodic:true,
+    def:'حركة متكررة لإحدى اليدين أو كلتيهما ذهابًا وإيابًا بالنسبة للساعد، تتضمن دورتين متتاليتين على الأقل؛ والدورة انتقال اليد في اتجاه ثم عودتها.',
+    start:'أول حركة في التسلسل الذي يستوفي التعريف.',
+    end:'آخر حركة إذا أعقبها توقف لمدة ثانيتين.',
+    rule:'حركة اليدين معًا تُحسب نوبة واحدة. لا يدخل ضمن التعريف رفع اليد والثبات بها، أو التصفيق. التلويح الذي يأخذ الشكل الحركي نفسه لا يُفرَّق من الحركة وحدها؛ يُسجَّل للمراجعة دون افتراض الغرض منه.',
+    measure:'عدد النوبات ومدتها، وليس عدد كل حركة صغيرة.',
+    tech:'زاوية اليد (من الرسغ 15/16 إلى منتصف السبابة والخنصر 17–20) بالنسبة للساعد (من المرفق 13/14 إلى الرسغ). نصف الدورة = تغيّر الزاوية 30° فأكثر في اتجاه ثم عكسه خلال 0.5 ثانية أو أقل. تبدأ النوبة بأربعة أنصاف دورات متتالية (دورتين)، وتمتد ما دامت الحركة مستمرة، وتُغلق بعد ثانيتين بلا حركة. تُتجاهل الإطارات التي تتقارب فيها الكفان (تصفيق). إن كانت اليد أعلى من الكتف معظم النوبة تُكتب ملاحظة «قد تشبه التلويح» للمراجعة. يُفضَّل معدل 25 إطارًا/ث لأن الرفرفة سريعة.'},
+  rock:{name:'التأرجح بالجسم', cls:'c-rock', varc:'--b-rock', unit:'نوبة', episodic:true,
+    def:'تحرك الجذع ذهابًا وإيابًا للأمام والخلف أو للجانبين، مع إكمال دورتين متتاليتين على الأقل. والدورة الانتقال من وضع البداية باتجاه معين ثم العودة إليه.',
+    start:'أول حركة في التسلسل.',
+    end:'آخر حركة يتبعها توقف لمدة ثانيتين.',
+    rule:'لا يُحسب الميل مرة واحدة للوصول إلى غرض، ولا تغيير وضعية الجلوس مرة واحدة.',
+    measure:'عدد النوبات ومدتها، مع تسجيل اتجاه التأرجح.',
+    tech:'إشارتان للجذع (منتصف الكتفين 11/12 بالنسبة لمنتصف الوركين 23/24): زاوية ميل الجذع (للجانبين عند التصوير من الأمام، وللأمام والخلف عند التصوير من الجانب)، ونسبة طول الجذع إلى عرض الكتفين (للأمام والخلف عند التصوير من الأمام). نصف الدورة = تغيّر 7° في الميل أو 0.1 في النسبة خلال 1.5 ثانية أو أقل؛ النوبة من دورتين فأكثر. تُستبعد لحظات القيام والجلوس، والنوبات التي ينتقل فيها الجسم من مكانه (مشي).'},
+  jump:{name:'القفز المتكرر', cls:'c-jump', varc:'--b-jump', unit:'قفزة',
+    def:'سلسلة من قفزتين أو أكثر، تغادر فيها القدمان الأرض معًا ثم تعودان إليها، ولا تزيد الفترة بين الهبوط والإقلاع التالي على ثانيتين.',
+    start:'الإقلاع: مغادرة القدمين الأرض معًا.',
+    end:'الهبوط: عودة القدمين إلى الأرض.',
+    rule:'كل إقلاع يتبعه هبوط يُحسب قفزة واحدة، ويُسجَّل عدد سلاسل القفز منفصلًا. لا يُحسب رفع الكعبين مع بقاء مقدمتي القدمين على الأرض، ولا الحجل على قدم واحدة. إذا كانت القدمان خارج الصورة لا يُعتمد العد بالتخمين.',
+    measure:'عدد القفزات، مع عدد السلاسل.',
+    tech:'أدنى نقطة في كل قدم (الكاحل 27/28 والكعب 29/30 ومقدمة القدم 31/32) مقارنة بمستوى الأرض في آخر 0.8 ثانية. إقلاع = ارتفاع القدمين كلتيهما والوركين معًا بعد أن كانتا على الأرض قبل نصف ثانية على الأكثر؛ هبوط صحيح = عودة القدمين كلتيهما. تُحسب القفزات فقط إذا كانت في سلسلة من قفزتين فأكثر.'},
+  spin:{name:'الدوران حول النفس', cls:'c-spin', varc:'--b-spin', unit:'دورة',
+    def:'دوران الشخص بجسمه حول محوره الرأسي دورة كاملة، بحيث يعود الجذع إلى اتجاه البداية بعد المرور بالاتجاهات الواقعة بينهما.',
+    start:'بداية الدوران من اتجاه معين.',
+    end:'عودة الجذع إلى اتجاه البداية (اكتمال 360°).',
+    rule:'كل 360° تُحسب مرة واحدة. نصف الدورة أو الالتفات ثم الرجوع لا يُحسب. لا يُحسب المشي في دائرة حول غرض.',
+    measure:'عدد الدورات الكاملة.',
+    tech:'اتجاه خط الكتفين (11–12) من موضعهما الأفقي وعمقهما التقديري، ويُجمع الدوران زاويةً بعد زاوية. دورة = 360° في اتجاه واحد (بسماحية 15° لتذبذب تقدير الوضعية) خلال 8 ثوانٍ أو أقل؛ الرجوع 90° يلغي الدورة الجارية. تُستبعد إذا تنقّل الوركان أكثر من مرة ونصف عرض الكتفين (مشي في دائرة). يُسجَّل وقت اكتمال كل دورة. تقدير العمق من كاميرا واحدة تقريبي ويحتاج اختبارًا.'},
+  leave:{name:'مغادرة الكرسي', cls:'c-leave', varc:'--b-leave', unit:'مرة',
+    def:'لأغراض هذا النموذج: انتقال الشخص من الجلوس على الكرسي إلى الوقوف، ثم ابتعاده عنه بخطوة واحدة على الأقل.',
+    start:'القيام من الجلوس.',
+    end:'إكمال أول خطوة بعد الوقوف.',
+    rule:'تُحسب مرة واحدة عند إكمال أول خطوة بعد الوقوف، ولا تُحسب مرة جديدة إلا بعد العودة إلى الجلوس ثم المغادرة مجددًا. الوقوف بجانب الكرسي دون خطوة يُسجَّل «قيامًا من الكرسي» لا «مغادرة». الوصف لا يعني أن المغادرة غير مسموحة؛ هذا يحتاج معرفة سياق الموقف.',
+    measure:'عدد مرات المغادرة.',
+    tech:'بعد رصد «القيام من الكرسي»: خطوة = انتقال أحد الكاحلين 0.35 من طول الساق فأكثر عن موضعه لحظة الوقوف، مع انتقال الوركين 0.15 من طول الساق. لا يُعدّ قيام وما يليه من مغادرة فعلًا متزامنًا لأنهما مرحلتان متتاليتان.'},
+  toe:{name:'المشي على أطراف الأصابع', cls:'c-toe', varc:'--b-toe', unit:'خطوة',
+    def:'التقدم بخطوتين متتاليتين على الأقل، يعتمد فيهما الشخص على مقدمة القدم دون ملامسة الكعب للأرض خلال مرحلة ارتكاز كل قدم.',
+    start:'أول خطوة من التسلسل المطابق.',
+    end:'ملامسة أحد الكعبين الأرض أو توقف المشي لمدة ثانيتين.',
+    rule:'لا يُحسب الوقوف على أطراف الأصابع دون تقدم. يلزم ظهور القدمين والكعبين وسطح الأرض بوضوح؛ وإلا تُسجَّل الحركة «غير قابلة للتحديد».',
+    measure:'عدد الخطوات المطابقة، مع عدد النوبات.',
+    tech:'يحتاج تصويرًا من الجانب. الخطوة = أرجحة القدم ثم ارتكازها بعد تقدّمها ربع طول الساق فأكثر. القدم على أطرافها إذا بقي الكعب (29/30) أعلى من مقدمة القدم (31/32) بزاوية 15° تقريبًا طوال الارتكاز. النوبة من خطوتين فأكثر، وتنتهي بخطوة يلمس فيها الكعب الأرض أو بتوقف المشي ثانيتين. إن ظهر طول القدم قصيرًا جدًا (تصوير من الأمام) تُسجَّل الفترة «غير قابلة للتحديد».'},
+  other:{name:'حركة خارج الفئات', cls:'c-other', varc:'--b-other'}
 };
-const BKEYS = ['raise','clap','stand'];
+['raise','clap','stand'].forEach(b=>{ BEH[b].unit = b==='clap'? 'تصفيقة' : 'مرة'; BEH[b].measure = 'عدد المرات.'; });
+const BKEYS = ['raise','clap','stand','flap','rock','jump','spin','leave','toe'];
+const OLD3 = ['raise','clap','stand'];
+const MULTI = new Set(['clap','jump','spin','toe']);   // events that hold several counted units (times[])
+const NOSYNC = new Set(['stand|leave','leave|stand']); // successive phases of one act, not simultaneous actions
+const sesKeys = s => (s && Array.isArray(s.targets) && s.targets.length)? BKEYS.filter(b=>s.targets.includes(b)) : OLD3;
+const keysFor = list => { const set=new Set(); (list||[]).forEach(s=>sesKeys(s).forEach(b=>set.add(b))); return BKEYS.filter(b=>set.has(b)); };
+const childTargets = () => (S.child && Array.isArray(S.child.targets) && S.child.targets.length)? BKEYS.filter(b=>S.child.targets.includes(b)) : BKEYS.slice();
+const zeroCounts = () => Object.fromEntries(BKEYS.map(b=>[b,0]));
 const EXP = 'دقة نظام الرؤية الحاسوبية في رصد السلوكيات الحركية';
 const CONSENT = `نموذج موافقة ولي الأمر على مشاركة طفل في تجربة بحثية
 
@@ -252,7 +310,7 @@ const CONSENT = `نموذج موافقة ولي الأمر على مشاركة �
 أنا ولي أمر الطفل/ـة: ...................... (يُستخدم رمز بدل الاسم في البيانات)
 أوافق على مشاركته/ا في التجربة، وقد فهمت ما يلي:
 1. تُستخدم كاميرا تحلّل حركة الجسم داخل الجهاز مباشرة، ولا يُسجَّل فيديو ولا تُحفظ صورة الطفل أو وجهه.
-2. يُحفظ فقط عدد مرات ثلاث حركات (رفع اليد، التصفيق، القيام من الكرسي) وأوقاتها، تحت رمز لا يدل على هوية الطفل.
+2. يُحفظ فقط عدد مرات حركات جسم محددة وأوقاتها (مثل رفع اليد، التصفيق، القيام من الكرسي، رفرفة اليدين، التأرجح، القفز، الدوران، مغادرة الكرسي، المشي على أطراف الأصابع)، تحت رمز لا يدل على هوية الطفل. وصف الحركة لا يعني تشخيصًا.
 3. تُستخدم النتائج لأغراض البحث فقط، ولا يُنشر ما يدل على هوية الطفل.
 4. يتوقف الرصد فورًا إذا انزعج الطفل، ويحق لي إيقاف المشاركة وحذف البيانات في أي وقت دون أي أثر.
 5. تحضر التجربة/يُبلَّغ بها ولي الأمر، وتشرف عليها أخصائية معتمدة.
@@ -384,22 +442,27 @@ const SYNC_TOL = 0.3;
 const comboName = set => BKEYS.filter(b=>set.has(b)).map(b=>BEH[b].name).join(' + ');
 function cooccur(evs){
   evs = evs.filter(e=>e.kind==='event');
-  const iv = evs.filter(e=>e.behavior!=='clap').map(e=>({e, b:e.behavior, s:e.start, t:Math.max(e.end, e.start)}));
-  const claps = []; evs.filter(e=>e.behavior==='clap').forEach(e=>{ const ts=(e.times&&e.times.length)? e.times : [e.start]; ts.forEach(t=>claps.push({e,t})); });
+  // every event is an interval; counted behaviours (clap, jump, spin, toe) also carry unit times
+  const N = evs.map(e=>({e, b:e.behavior, s:e.start, t:Math.max(e.end, e.start), pts: MULTI.has(e.behavior)? ((e.times&&e.times.length)? e.times : [e.start]) : null}));
   const withMap = new Map(); const mark=(e,b)=>{ if(!withMap.has(e)) withMap.set(e,new Set()); withMap.get(e).add(b); };
-  const parent = iv.map((_,i)=>i); const find=i=>parent[i]===i?i:(parent[i]=find(parent[i])); const unite=(a,b)=>{ parent[find(a)]=find(b); };
-  for(let i=0;i<iv.length;i++) for(let j=i+1;j<iv.length;j++){
-    const A=iv[i], B=iv[j]; if(A.b!==B.b && A.s<=B.t+SYNC_TOL && B.s<=A.t+SYNC_TOL){ mark(A.e,B.b); mark(B.e,A.b); unite(i,j); } }
-  const syncClaps = new Map(); const clapInGroup = new Map();
-  claps.forEach(c=>{ const hits=[]; iv.forEach((x,i)=>{ if(c.t>=x.s-SYNC_TOL && c.t<=x.t+SYNC_TOL) hits.push(i); });
-    if(hits.length){ syncClaps.set(c.e,(syncClaps.get(c.e)||0)+1); hits.forEach(i=>{ mark(iv[i].e,'clap'); mark(c.e,iv[i].b); });
-      for(let k=1;k<hits.length;k++) unite(hits[0],hits[k]); const r=find(hits[0]); clapInGroup.set(r,(clapInGroup.get(r)||0)+1); } });
+  const parent = N.map((_,i)=>i); const find=i=>parent[i]===i?i:(parent[i]=find(parent[i])); const unite=(a,b)=>{ parent[find(a)]=find(b); };
+  const unitHit = new Map(); const hitPt=(x,k)=>{ if(!unitHit.has(x.e)) unitHit.set(x.e,new Set()); unitHit.get(x.e).add(k); };
+  const inIv = (t,x) => t>=x.s-SYNC_TOL && t<=x.t+SYNC_TOL;
+  for(let i=0;i<N.length;i++) for(let j=i+1;j<N.length;j++){
+    const A=N[i], B=N[j]; if(A.b===B.b || NOSYNC.has(A.b+'|'+B.b)) continue;
+    let hit=false;
+    if(!A.pts && !B.pts) hit = A.s<=B.t+SYNC_TOL && B.s<=A.t+SYNC_TOL;
+    else {
+      if(A.pts) A.pts.forEach((t,k)=>{ if(inIv(t,B)){ hit=true; hitPt(A,k); } });
+      if(B.pts) B.pts.forEach((t,k)=>{ if(inIv(t,A)){ hit=true; hitPt(B,k); } });
+    }
+    if(hit){ mark(A.e,B.b); mark(B.e,A.b); unite(i,j); }
+  }
   const groups = new Map();
-  iv.forEach((x,i)=>{ if(!withMap.has(x.e)) return; const r=find(i); if(!groups.has(r)) groups.set(r,{beh:new Set(), start:Infinity, end:-Infinity, claps:0}); const g=groups.get(r); g.beh.add(x.b); g.start=Math.min(g.start,x.s); g.end=Math.max(g.end,x.t); });
-  [...clapInGroup.keys()].forEach(k=>{ const r=find(k); const g=groups.get(r); if(g){ g.beh.add('clap'); g.claps+=clapInGroup.get(k); } });
+  N.forEach((x,i)=>{ if(!withMap.has(x.e)) return; const r=find(i); if(!groups.has(r)) groups.set(r,{beh:new Set(), start:Infinity, end:-Infinity, claps:0}); const g=groups.get(r); g.beh.add(x.b); g.start=Math.min(g.start,x.s); g.end=Math.max(g.end,x.t); if(x.b==='clap') g.claps+=(unitHit.get(x.e)||new Set()).size; });
   const episodes=[...groups.values()].filter(g=>g.beh.size>1).map(g=>({label:comboName(g.beh), behaviors:[...g.beh], start:g.start, end:g.end, claps:g.claps})).sort((a,b)=>a.start-b.start);
   const per={}; BKEYS.forEach(b=>{ const list=evs.filter(e=>e.behavior===b);
-    if(b==='clap'){ const total=sum(list.map(e=>e.count??((e.times||[]).length||1))); const sync=Math.min(total, sum(list.map(e=>Math.min(syncClaps.get(e)||0, e.count??Infinity)))); per[b]={total, sync, solo:total-sync}; }
+    if(MULTI.has(b)){ const total=sum(list.map(e=>e.count??((e.times||[]).length||1))); const sync=Math.min(total, sum(list.map(e=>Math.min((unitHit.get(e)||new Set()).size, e.count??Infinity)))); per[b]={total, sync, solo:total-sync}; }
     else { const total=list.length, sync=list.filter(e=>withMap.has(e)).length; per[b]={total, sync, solo:total-sync}; } });
   const combos={}; episodes.forEach(x=>{ combos[x.label]=(combos[x.label]||0)+1; });
   return {per, episodes, combos, withMap};
@@ -504,8 +567,9 @@ function vHome(){
   const lastIoa=ioaVals.length? ioaVals[0].overall : null;
   const consentOk = c.kind==='volunteer' || (c.consentGuardian && c.consentAssent && c.consentSpecialist);
   const coH = mergeCo(S.sessions.map(x=>cooccur(evOf(x.id).filter(e=>e.status==='approved'))));
+  const HK = S.sessions.length? keysFor(S.sessions) : childTargets();
   return `
-  ${headBlock(`لوحة الطفل · ملف رقم ${fmtFile(c.fileNo)}`, c.code? `المشارك ${esc(c.code)}` : `ملف ${fmtFile(c.fileNo)}`, 'نظام يرصد ثلاث سلوكيات معرّفة تشغيليًا من فيديو أو كاميرا داخل جهازك، ويقترح أحداثًا يعتمدها الأخصائي قبل دخولها التقرير.',
+  ${headBlock(`لوحة الطفل · ملف رقم ${fmtFile(c.fileNo)}`, c.code? `المشارك ${esc(c.code)}` : `ملف ${fmtFile(c.fileNo)}`, 'نظام يرصد سلوكيات حركية معرّفة تشغيليًا من فيديو أو كاميرا داخل جهازك، ويقترح أحداثًا يعتمدها الأخصائي قبل دخولها التقرير.',
     `<label class="btn" for="imp_file" style="cursor:pointer">استيراد بيانات</label><input type="file" id="imp_file" accept="application/json,.json" hidden><button class="btn primary" data-go="session">ابدأ جلسة رصد</button>`)}
   ${consentOk? '' : `<div class="notice warn">لم تُسجَّل كل الموافقات بعد (ولي الأمر، قبول الطفل، الأخصائية). سجّليها في <button class="btn sm ghost" data-go="child">ملف الطفل</button> قبل أي رصد لطفل حقيقي.</div>`}
   <div class="sheet flush"><div class="grid g4">
@@ -515,15 +579,15 @@ function vHome(){
     <div class="kpi"><span class="v num">${pct(lastIoa)}</span><span class="k">آخر اتفاق مع الأخصائية (IOA)</span></div>
   </div></div>
   <div class="grid g4">
-    ${BKEYS.map(b=>{ const p=coH.per[b]; return `<div class="counter ${BEH[b].cls}"><span class="lbl">${BEH[b].name} · منفرد</span><div class="tally">${tallySVG(p.solo, `var(${BEH[b].varc})`)}</div><span class="small muted">${p.solo} منفرد${p.sync? ` · ${p.sync} متزامن`:''} (معتمد)</span></div>`; }).join('')}
+    ${HK.map(b=>{ const p=coH.per[b]; return `<div class="counter ${BEH[b].cls}"><span class="lbl">${BEH[b].name} · منفرد</span><div class="tally">${tallySVG(p.solo, `var(${BEH[b].varc})`)}</div><span class="small muted">${p.solo} منفرد${p.sync? ` · ${p.sync} متزامن`:''} (معتمد)</span></div>`; }).join('')}
     <div class="counter sync"><span class="lbl">أفعال متزامنة</span><div class="tally">${tallySVG(coH.episodes.length, 'var(--accent)')}</div><div class="combo-list">${Object.keys(coH.combos).length? Object.entries(coH.combos).map(([k,v])=>`<span>${k}: <b class="num">${v}</b></span>`).join('') : '<span class="small muted">لا يوجد بعد</span>'}</div></div>
   </div>
   <div class="sheet stack">
     <div class="row" style="justify-content:space-between"><h2>الجلسات</h2><button class="btn sm" data-go="review">مراجعة الأحداث</button></div>
-    ${S.sessions.length? `<div class="tbl-wrap"><table><thead><tr><th>التاريخ</th><th>الجلسة</th><th>المدة</th>${BKEYS.map(b=>`<th>${BEH[b].name}</th>`).join('')}<th>تنتظر</th><th></th></tr></thead><tbody>
+    ${S.sessions.length? `<div class="tbl-wrap"><table><thead><tr><th>التاريخ</th><th>الجلسة</th><th>المدة</th>${HK.map(b=>`<th>${BEH[b].name}</th>`).join('')}<th>تنتظر</th><th></th></tr></thead><tbody>
     ${S.sessions.map(s=>{ const e=evOf(s.id).filter(x=>x.kind==='event'); return `<tr>
       <td class="num">${esc(s.date)}</td><td>${esc(s.label||'جلسة')}${s.example?' <span class="pill p-undet">مثال</span>':''}</td><td>${fmtDur(s.duration)}</td>
-      ${BKEYS.map(b=>`<td class="num">${sum(e.filter(x=>x.behavior===b).map(evCount))}</td>`).join('')}
+      ${HK.map(b=>`<td class="num">${sesKeys(s).includes(b)? sum(e.filter(x=>x.behavior===b).map(evCount)) : '<span class="muted">—</span>'}</td>`).join('')}
       <td class="num">${e.filter(x=>x.status==='pending').length}</td>
       <td><button class="btn sm ghost" data-del-session="${s.id}">حذف</button></td></tr>`; }).join('')}
     </tbody></table></div>` : `<p class="muted">لا توجد جلسات بعد. ابدئي بجلسة رصد من فيديو مسجّل.</p>`}
@@ -610,7 +674,8 @@ afterRender.child = ()=>{
 /* BEHAVIORS */
 function vBehaviors(){
   return `
-  ${headBlock('التعريفات التشغيلية','السلوكيات المستهدفة','تعريفات الأخصائية كما وصلت، وبجانب كل تعريف القاعدة التي يطبّقها النظام على نقاط الجسم. البداية بعدّ المرات فقط، والمدة تُضاف لاحقًا عند الحاجة.')}
+  ${headBlock('التعريفات التشغيلية','السلوكيات المستهدفة','تعريفات الأخصائية كما وصلت، وبجانب كل تعريف القاعدة التي يطبّقها النظام على نقاط الجسم. تختار الأخصائية في كل جلسة السلوكيات التي تريد رصدها ومقارنتها.')}
+  <div class="notice">شرط الدورتين وفاصل الثانيتين قواعد مقترحة لتنظيم القياس في النموذج، وليست معايير تشخيصية؛ تُراجع بالتجربة، ثم تُستخدم النسخة نفسها في التسجيل البشري والنظام. وهذه أوصاف لحركات فقط، ولا تعني بحد ذاتها وجود توحّد أو أن الحركة تحتاج تدخلًا.</div>
   <div class="grid g3">
   ${BKEYS.map(b=>{ const x=BEH[b]; return `<article class="sheet beh-card ${x.cls}"><div class="inner">
     <h2>${x.name}</h2>
@@ -619,7 +684,7 @@ function vBehaviors(){
       <dt>البداية</dt><dd>${x.start}</dd>
       <dt>النهاية</dt><dd>${x.end}</dd>
       <dt>قاعدة العدّ</dt><dd>${x.rule}</dd>
-      <dt>بُعد القياس</dt><dd>عدد المرات فقط في هذه المرحلة. قياس المدة يُضاف لاحقًا عند الحاجة.</dd>
+      <dt>بُعد القياس</dt><dd>${x.measure}</dd>
     </dl>
     <hr>
     <div class="stack"><span class="eyebrow">كيف يرصده النظام</span><p class="small">${x.tech}</p></div>
@@ -628,8 +693,12 @@ function vBehaviors(){
   <div class="sheet stack" style="border-top:3px solid var(--accent)"><h2>الفعل المتزامن</h2>
     <dl class="def"><dt>التعريف</dt><dd>حدوث سلوكين مختلفين أو أكثر في الوقت نفسه، مثل التصفيق واليدان مرفوعتان، أو رفع اليد أثناء القيام.</dd>
     <dt>قاعدة العدّ</dt><dd>كل تداخل زمني بين سلوكين (بهامش ${SYNC_TOL} ثانية) يُسجَّل فعلًا متزامنًا واحدًا في خانة مستقلة، ويُحسب كل سلوك داخله في خانة «متزامن» لا في خانة «منفرد». المجموع = منفرد + متزامن.</dd>
-    <dt>مثال</dt><dd>رفع اليدين مرة مع تصفيقتين فوق الرأس: رفع اليد متزامن 1، التصفيق متزامن 2، أفعال متزامنة 1 (رفع اليد + التصفيق).</dd></dl></div>
-  <div class="notice">إذا كانت الحركة محجوبة أو خارج إطار الكاميرا لأكثر من ثانية، تُسجَّل الفترة «غير قابلة للتحديد» بدل تخمينها، وتظهر في المراجعة والتقرير.</div>`;
+    <dt>مثال</dt><dd>رفع اليدين مرة مع تصفيقتين فوق الرأس: رفع اليد متزامن 1، التصفيق متزامن 2، أفعال متزامنة 1 (رفع اليد + التصفيق). وإذا تزامنت حركتان واستوفت كل واحدة تعريفها، تُسجَّل كلٌّ في فئتها مع توقيتها.</dd>
+    <dt>استثناء</dt><dd>القيام من الكرسي ثم مغادرته مرحلتان متتاليتان للفعل نفسه، فلا تُعدّان فعلًا متزامنًا.</dd></dl></div>
+  <div class="grid g2">
+    <div class="sheet stack" style="border-top:3px solid var(--line)"><h3>غير قابلة للتحديد</h3><p class="small">حركة غير واضحة بسبب الحجب أو زاوية التصوير أو خروج الجسم من الإطار لأكثر من ثانية: تُسجَّل الفترة «غير قابلة للتحديد» لكل سلوك يحتاج الجزء المحجوب، بدل تخمينها.</p></div>
+    <div class="sheet stack" style="border-top:3px solid var(--b-other)"><h3>حركة خارج الفئات المحددة</h3><p class="small">حركة واضحة لأطراف الجسم لمدة ثانية فأكثر لم تطابق أي تعريف من التعريفات. تُعرض في المراجعة بلون رمادي للاطلاع، ولا تُعدّ ضمن أي سلوك ولا تدخل الاتفاق.</p></div>
+  </div>`;
 }
 
 /* SESSION */
@@ -743,21 +812,82 @@ async function pickAt(e){
 }
 const CONN=[[11,12],[11,13],[13,15],[12,14],[14,16],[15,19],[16,20],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
 
+/* Back-and-forth counter for one signal (hand angle, trunk lean…).
+   half-cycle = the signal moves ≥ amp one way, then turns; an episode starts after 4 consecutive half-cycles (2 cycles),
+   each no longer than maxHalf, and closes after `pause` seconds without movement. */
+class Osc{
+  constructor(amp, maxHalf, smooth=0, pause=2){ this.amp=amp; this.maxHalf=maxHalf; this.smooth=smooth; this.raw=[]; this.rawH=[]; this.now=0; this.pause=pause; this.out=[]; this.ep=null; this.lastMove=-1e9; this.settled=true; this.hist=[]; this.brk(); }
+  brk(){ this.dir=0; this.buf=[]; this.revs=[]; this.run=0; this.runStart=0; this.ext=null; this.tExt=0; this.prog=null; this.raw=[]; }
+  push(t,v,info){
+    // moving average over `smooth` seconds: pose jitter is frame-to-frame noise, real movement persists over several frames
+    this.rawH.push({t,v}); while(this.rawH.length && this.rawH[0].t < t-4) this.rawH.shift(); this.now=t;
+    if(this.smooth){ this.raw.push({t,v}); while(this.raw.length && this.raw[0].t < t-this.smooth) this.raw.shift(); v=sum(this.raw.map(r=>r.v))/this.raw.length; }
+    this.hist.push({t,info}); while(this.hist.length && this.hist[0].t < t-60) this.hist.shift();
+    if(this.dir===0){
+      this.buf.push({t,v}); while(this.buf.length && this.buf[0].t < t-this.maxHalf) this.buf.shift();
+      let lo=this.buf[0], hi=this.buf[0]; for(const p of this.buf){ if(p.v<lo.v) lo=p; if(p.v>hi.v) hi=p; }
+      if(hi.v-lo.v>=this.amp){ const up=lo.t<hi.t; const a=up?lo:hi, b=up?hi:lo;
+        this.revs=[a]; this.dir=up?1:-1; this.ext=b.v; this.tExt=b.t; this.prog=b.v; this.moved(t); this.buf=[]; }
+      return; }
+    if((v-this.ext)*this.dir>0){ this.ext=v; this.tExt=t; if(Math.abs(v-this.prog)>=this.amp*0.15){ this.prog=v; this.moved(t); } }
+    else if((this.ext-v)*this.dir>=this.amp){ this.half({t:this.tExt, v:this.ext}); this.dir=-this.dir; this.ext=v; this.tExt=t; this.prog=v; this.moved(t); }
+  }
+  moved(t){ this.lastMove=t; this.settled=false; }
+  half(r){
+    const p=this.revs[this.revs.length-1]; this.revs.push(r); if(this.revs.length>6) this.revs.shift();
+    const d=r.t-p.t;
+    // coherence: real movement keeps its direction over consecutive frames (lag-1 correlation of changes > 0); jitter flips sign (≈ -0.5)
+    const h=this.rawH.filter(x=>x.t>=r.t-1 && x.t<=r.t+0.07); let num=0, den=0; for(let i=2;i<h.length;i++){ const a=h[i].v-h[i-1].v, b=h[i-1].v-h[i-2].v; num+=a*b; den+=a*a; }
+    const coherent = h.length<4 || (den>0 && num/den>=0.15);
+    if(!coherent){ this.run=0; return; }
+    if(d <= this.maxHalf){ if(this.run===0){ this.runStart=p.t; this.durs=[]; } this.run++; this.durs.push(d); if(this.durs.length>4) this.durs.shift(); } else this.run=0;
+    if(this.ep){ this.ep.end=r.t; this.ep.halves++; }
+    else if(this.run>=4){
+      // a real back-and-forth is rhythmic: the 4 half-cycles that open an episode have similar durations (pose jitter does not)
+      const ds=this.durs.map(x=>Math.max(x,0.02)); const rhythmic = Math.max(...ds)/Math.min(...ds) <= 2.5;
+      if(rhythmic) this.ep={start:this.runStart, end:r.t, halves:this.run};
+    }
+  }
+  breakRun(){ this.brk(); }               // signal unusable for a moment (e.g. standing up): restart the chain, keep an open episode
+  tick(t){ if(this.ep){ if(t-this.ep.end>=this.pause) this.settle(); } else if(!this.settled && t-this.lastMove>=this.pause) this.settle(); }
+  settle(){
+    if(this.dir!==0){ const p=this.revs[this.revs.length-1]; if(p && Math.abs(this.ext-p.v)>=this.amp) this.half({t:this.tExt, v:this.ext}); }
+    if(this.ep){ this.ep.info=this.hist.filter(h=>h.t>=this.ep.start-0.05 && h.t<=this.ep.end+0.05).map(h=>h.info); this.out.push(this.ep); this.ep=null; }
+    this.brk(); this.settled=true;
+  }
+}
 class Detector{
   constructor(W,H){ this.W=W; this.H=H; this.V=0.5; this.events=[]; this.clapTimes=[];
     this.r={side:{L:false,R:false}, on:false, cand:0, off:0, start:0, sides:new Set(), key:null};
     this.c={touch:false, tTouch:0, bout:null, lastSep:-9};
     this.s={state:'unknown', stCand:null, stFrames:0, leaveSeat:null, standSince:null};
-    this.u={raise:null, clap:null, stand:null}; this.t=0; }
-  P(lm,i){ const p=lm[i]; return {x:p.x*this.W, y:p.y*this.H, v:p.visibility??1}; }
+    this.lv=null;
+    this.fl={L:new Osc(30,0.5,0.1), R:new Osc(30,0.5,0.1)};
+    this.rk={lean:new Osc(7,1.5,0.3), depth:new Osc(0.12,1.5,0.3), swRef:0, hipPrev:null};
+    this.j={hist:[], state:'ground', bothGround:-9, air:null, series:null};
+    this.sp={prev:null, prevT:-9, cum:0, anc:0, t0:0, best:0, dir:0, ref:0, hx0:0,hx1:0,hy0:0,hy1:0, series:null};
+    this.tw={f:[{},{}], ep:null};
+    this.oth={on:false, t0:0, last:0, win:[], prev:null};
+    this.keys=[];
+    this.u=Object.fromEntries(BKEYS.map(b=>[b,null])); this.t=0; }
+  P(lm,i){ const p=lm[i]; return {x:p.x*this.W, y:p.y*this.H, z:(p.z||0)*this.W, v:p.visibility??1}; }
   compact(lm){ const a=[]; for(const p of lm){ a.push(+(p.x.toFixed(3)), +((p.visibility??1)<this.V? -1 : p.y.toFixed(3))); } return a; }
+  keyAt(t){ let best=null, bd=1e9; for(const k of this.keys){ const d=Math.abs(k.t-t); if(d<bd){ bd=d; best=k.key; } } return best; }
   undet(b, ok, t){
     if(!ok){ if(this.u[b]==null) this.u[b]=t; }
     else if(this.u[b]!=null){ if(t-this.u[b]>=1) this.events.push({behavior:b, kind:'undet', start:this.u[b], end:t}); this.u[b]=null; }
   }
+  /* merge an episode (one hand / one signal) into an existing episode of the same behaviour when they overlap or are < 2 s apart */
+  addEpisode(b, ep, tag){
+    const near=this.events.find(e=>e.behavior===b && e.kind==='event' && ep.start<=e.end+2 && ep.end>=e.start-2);
+    if(near){ near.start=Math.min(near.start,ep.start); near.end=Math.max(near.end,ep.end); near.tags.add(tag); near.halves+=ep.halves; near.info.push(...(ep.info||[])); return near; }
+    const e={behavior:b, kind:'event', start:ep.start, end:ep.end, count:1, tags:new Set([tag]), halves:ep.halves, info:[...(ep.info||[])], key:this.keyAt(ep.start)}; this.events.push(e); return e;
+  }
   update(t, lm){
     this.t=t;
-    if(!lm){ BKEYS.forEach(b=>this.undet(b,false,t)); return; }
+    this.fl.L.tick(t); this.fl.R.tick(t); this.rk.lean.tick(t); this.rk.depth.tick(t); this.drain();
+    if(!lm){ BKEYS.forEach(b=>this.undet(b,false,t)); this.oth.buf=[]; this.housekeep(t); return; }
+    if(!this.keys.length || t-this.keys[this.keys.length-1].t>=0.2){ this.keys.push({t, key:this.compact(lm)}); if(this.keys.length>600) this.keys.shift(); }
     const P=i=>this.P(lm,i), V=this.V;
     const sL=P(11), sR=P(12); const sw=Math.max(8, Math.hypot(sL.x-sR.x, sL.y-sR.y));
     /* raise hand */
@@ -782,11 +912,11 @@ class Detector{
     const wL=P(15), wR=P(16), iL=P(19), iR=P(20);
     const clapOk = wL.v>=V && wR.v>=V && sL.v>=V && sR.v>=V;
     this.undet('clap', clapOk, t);
-    const c=this.c;
+    const c=this.c; let handsD=9;
     if(clapOk){
       const hL={x:(wL.x+(iL.v>=V?iL.x:wL.x))/2, y:(wL.y+(iL.v>=V?iL.y:wL.y))/2};
       const hR={x:(wR.x+(iR.v>=V?iR.x:wR.x))/2, y:(wR.y+(iR.v>=V?iR.y:wR.y))/2};
-      const d=Math.hypot(hL.x-hR.x, hL.y-hR.y)/sw;
+      const d=Math.hypot(hL.x-hR.x, hL.y-hR.y)/sw; handsD=d;
       if(!c.touch && d<0.45){ c.touch=true; c.tTouch=t; c.keyTouch=this.compact(lm); }
       else if(c.touch && d>0.75){ c.touch=false; this.clapTimes.push(c.tTouch);
         if(c.bout && c.tTouch - c.lastSep <= 1.5){ c.bout.count++; c.bout.times.push(+c.tTouch.toFixed(2)); c.bout.end=t; }
@@ -794,9 +924,13 @@ class Detector{
         c.lastSep=t; }
     }
     if(c.bout && !c.touch && t-c.lastSep>1.5) this.closeBout();
-    /* sit to stand */
+    /* sit to stand, then leaving the chair */
     const sides=[[23,25,27],[24,26,28]].map(([h,k,a])=>({h:P(h),k:P(k),a:P(a)})).filter(s=>s.h.v>=V&&s.k.v>=V&&s.a.v>=V);
     this.undet('stand', sides.length>0 && sL.v>=V, t);
+    this.undet('leave', sides.length>0 && sL.v>=V, t);
+    const hipsV = P(23).v>=V && P(24).v>=V;
+    const hip = {x:(P(23).x+P(24).x)/2, y:(P(23).y+P(24).y)/2};
+    const legLen = Math.max(8, (Math.hypot(P(23).x-P(27).x,P(23).y-P(27).y)+Math.hypot(P(24).x-P(28).x,P(24).y-P(28).y))/2);
     if(sides.length){
       const ang = s => { const v1={x:s.h.x-s.k.x,y:s.h.y-s.k.y}, v2={x:s.a.x-s.k.x,y:s.a.y-s.k.y}; const cos=(v1.x*v2.x+v1.y*v2.y)/(Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y)||1); return Math.acos(Math.max(-1,Math.min(1,cos)))*180/Math.PI; };
       const angle = sum(sides.map(ang))/sides.length;
@@ -806,28 +940,199 @@ class Detector{
       if(angle<=120 || (kneeY-hipY) < 0.3*torso) pos='seated';
       else if(angle>=160 && (kneeY-hipY)>=0.5*torso) pos='standing';
       const s=this.s;
-      if(pos==='seated'){ s.state='seated'; s.leaveSeat=null; s.standSince=null; }
+      if(pos==='seated'){ s.state='seated'; s.leaveSeat=null; s.standSince=null; this.lv=null; }
       else if(pos==='mid'){ if(s.state==='seated' && s.leaveSeat==null) s.leaveSeat=t; s.standSince=null; }
       else if(pos==='standing'){
         if(s.state==='seated' || (s.state==='rising')){ if(s.leaveSeat==null) s.leaveSeat=t; if(s.standSince==null) s.standSince=t; s.state='rising';
-          if(t-s.standSince>=0.3){ this.events.push({behavior:'stand', kind:'event', start:s.leaveSeat, end:s.standSince, count:1, detail:'وقوف كامل', key:this.compact(lm)}); s.state='standing'; s.leaveSeat=null; } }
+          if(t-s.standSince>=0.3){ this.events.push({behavior:'stand', kind:'event', start:s.leaveSeat, end:s.standSince, count:1, detail:'وقوف كامل', key:this.compact(lm)}); s.state='standing'; s.leaveSeat=null;
+            if(P(27).v>=V && P(28).v>=V && hipsV) this.lv={armed:true, a:[{x:P(27).x,y:P(27).y},{x:P(28).x,y:P(28).y}], hip:{...hip}}; } }
         else if(s.state==='unknown') s.state='standing';
       }
+      const L=this.lv;
+      if(L && L.armed && s.state==='standing' && P(27).v>=V && P(28).v>=V && hipsV){
+        const ad=Math.max(Math.hypot(P(27).x-L.a[0].x,P(27).y-L.a[0].y), Math.hypot(P(28).x-L.a[1].x,P(28).y-L.a[1].y))/legLen;
+        const hd=Math.hypot(hip.x-L.hip.x, hip.y-L.hip.y)/legLen;
+        if(ad>=0.35 && hd>=0.15){ this.events.push({behavior:'leave', kind:'event', start:t, end:t, count:1, detail:'خطوة بعيدًا عن الكرسي بعد الوقوف', key:this.compact(lm)}); L.armed=false; }
+      }
     }
+    /* hand flapping: hand angle relative to the forearm */
+    let flapVis=false;
+    for(const [k,e,w,ix,pk,sh] of [['L',13,15,19,17,11],['R',14,16,20,18,12]]){
+      const E=P(e), Wr=P(w), I=P(ix), Pk=P(pk), Sh=P(sh);
+      const tips=[I,Pk].filter(p=>p.v>=V);
+      if(E.v<V || Wr.v<V || !tips.length){ continue; }
+      flapVis=true;
+      if(handsD<0.75){ this.fl[k].breakRun(); continue; }   // hands together: clapping, not flapping
+      const tx=sum(tips.map(p=>p.x))/tips.length, ty=sum(tips.map(p=>p.y))/tips.length;
+      const fa=Math.atan2(Wr.y-E.y, Wr.x-E.x), ha=Math.atan2(ty-Wr.y, tx-Wr.x);
+      let a=(ha-fa)*180/Math.PI; a=((a+540)%360)-180;
+      this.fl[k].push(t, a, {up: Sh.v>=V && Wr.y < Sh.y});
+    }
+    this.undet('flap', flapVis, t);
+    /* body rocking: trunk lean and trunk length / shoulder width */
+    const rk=this.rk, trunkOk = sL.v>=V && sR.v>=V && hipsV;
+    this.undet('rock', trunkOk, t);
+    if(trunkOk){
+      const sm={x:(sL.x+sR.x)/2, y:(sL.y+sR.y)/2}; const tl=Math.max(8, Math.hypot(sm.x-hip.x, sm.y-hip.y));
+      const view=sw/tl; rk.swRef=Math.max(sw, rk.swRef*0.995);
+      const hv = rk.hipPrev? Math.hypot(hip.x-rk.hipPrev.x, hip.y-rk.hipPrev.y)/tl/Math.max(1e-3,t-rk.hipPrev.t) : 0; rk.hipPrev={x:hip.x,y:hip.y,t};
+      const lean=Math.atan2(sm.x-hip.x, hip.y-sm.y)*180/Math.PI;
+      if(hv>0.6 || this.s.state==='rising'){ rk.lean.breakRun(); rk.depth.breakRun(); }
+      else {
+        const info={hx:hip.x/sw, view};
+        rk.lean.push(t, lean, info);
+        if(view>0.55 && sw>=0.8*rk.swRef) rk.depth.push(t, tl/sw, info); else rk.depth.breakRun();
+      }
+    } else rk.hipPrev=null;
+    /* repeated jumping: lowest point of each foot vs. recent ground level */
+    const foot = k => { const a=P(27+k), h=P(29+k), f=P(31+k); const pts=[a,h,f].filter(p=>p.v>=V); return a.v>=V && pts.length>=2 ? Math.max(...pts.map(p=>p.y)) : null; };
+    const fL=foot(0), fR=foot(1); const jOk = fL!=null && fR!=null && hipsV;
+    this.undet('jump', jOk, t);
+    if(jOk) this.jumpStep(t, fL, fR, hip.y, legLen, lm);
+    /* spinning: orientation of the shoulder line (horizontal offset + estimated depth) */
+    const shOk = sL.v>=V && sR.v>=V;
+    this.undet('spin', shOk, t);
+    if(shOk) this.spinStep(t, sL, sR, hipsV? hip : null);
+    /* toe walking */
+    this.toeStep(t, lm, hipsV, legLen);
+    /* movement outside the defined categories (for review only) */
+    this.otherStep(t, lm, sw, hipsV? hip : null);
+    this.drain(); this.housekeep(t);
+  }
+  jumpStep(t, fL, fR, hipY, leg, lm){
+    const j=this.j; j.hist.push({t,fL,fR,hip:hipY}); while(j.hist.length && j.hist[0].t<t-0.8) j.hist.shift();
+    const gL=Math.max(...j.hist.map(h=>h.fL)), gR=Math.max(...j.hist.map(h=>h.fR)), gH=Math.max(...j.hist.map(h=>h.hip));
+    const lL=(gL-fL)/leg, lR=(gR-fR)/leg, lH=(gH-hipY)/leg;
+    if(lL<0.03 && lR<0.03) j.bothGround=t;
+    if(j.state==='ground'){
+      if(lL>0.06 && lR>0.06 && lH>0.04 && t-j.bothGround<=0.5){ j.state='air'; j.air={t0:t, pL:fL, pR:fR, key:this.compact(lm)}; }
+    } else {
+      const a=j.air; a.pL=Math.min(a.pL,fL); a.pR=Math.min(a.pR,fR);
+      if(lL<0.03 || lR<0.03){
+        const ok = lL<0.05 && lR<0.05 && (fL-a.pL)/leg>=0.05 && (fR-a.pR)/leg>=0.05;
+        j.state='ground';
+        if(ok){ const sr=j.series;
+          if(sr && a.t0-sr.lastLand<=2){ sr.times.push(+a.t0.toFixed(2)); sr.lastLand=t; sr.end=t; }
+          else { this.closeJump(); j.series={start:a.t0, end:t, lastLand:t, times:[+a.t0.toFixed(2)], key:a.key}; } }
+      } else if(t-a.t0>1.5) j.state='ground';
+    }
+  }
+  closeJump(){ const sr=this.j.series; if(sr && sr.times.length>=2) this.events.push({behavior:'jump', kind:'event', start:sr.start, end:sr.end, count:sr.times.length, times:sr.times, detail:`${sr.times.length} قفزات متتالية (سلسلة واحدة)`, key:sr.key}); this.j.series=null; }
+  spinStep(t, sL, sR, hip){
+    const sp=this.sp; const dx=sL.x-sR.x, dz=sL.z-sR.z, m=Math.hypot(dx,dz);
+    sp.ref=Math.max(m, sp.ref*0.995);
+    if(m<0.4*sp.ref) return;
+    const th=Math.atan2(dz,dx)*180/Math.PI;
+    const resetAnc = ()=>{ sp.anc=sp.cum; sp.t0=t; sp.best=0; sp.dir=0; if(hip){ sp.hx0=sp.hx1=hip.x; sp.hy0=sp.hy1=hip.y; } };
+    if(sp.prev!=null && t-sp.prevT<=0.5){ let d=th-sp.prev; d=((d+540)%360)-180; if(Math.abs(d)<=120) sp.cum+=d; }
+    else { sp.cum=0; resetAnc(); }
+    sp.prev=th; sp.prevT=t;
+    if(hip){ sp.hx0=Math.min(sp.hx0,hip.x); sp.hx1=Math.max(sp.hx1,hip.x); sp.hy0=Math.min(sp.hy0,hip.y); sp.hy1=Math.max(sp.hy1,hip.y); }
+    const rel=sp.cum-sp.anc;
+    if(!sp.dir && Math.abs(rel)>=45) sp.dir=Math.sign(rel);
+    if(sp.dir){ const prog=rel*sp.dir;
+      if(prog>sp.best) sp.best=prog;
+      if(prog < sp.best-90){ resetAnc(); return; }                 // turned back: half turn / look-and-return
+      if(prog>=345){                                              // a full turn, allowing ~15° of pose noise
+        const moved=Math.max(sp.hx1-sp.hx0, sp.hy1-sp.hy0) > 1.5*sp.ref;   // walking in a circle, not spinning in place
+        if(t-sp.t0<=8 && !moved){ const s=sp.series;
+          if(s && t-s.last<=3){ s.times.push(+t.toFixed(2)); s.last=t; s.end=t; }
+          else { this.closeSpin(); sp.series={start:sp.t0, end:t, last:t, times:[+t.toFixed(2)], key:this.keyAt(sp.t0)}; } }
+        sp.anc+=360*sp.dir; sp.t0=t; sp.best=prog-360; if(hip){ sp.hx0=sp.hx1=hip.x; sp.hy0=sp.hy1=hip.y; }
+      }
+    }
+    if(t-sp.t0>8) resetAnc();
+  }
+  closeSpin(){ const s=this.sp.series; if(s) this.events.push({behavior:'spin', kind:'event', start:s.start, end:s.end, count:s.times.length, times:s.times, detail: s.times.length===1? 'دورة كاملة' : `${s.times.length} دورات كاملة متتالية`, key:s.key}); this.sp.series=null; }
+  toeStep(t, lm, hipsV, leg){
+    const P=i=>this.P(lm,i), V=this.V, tw=this.tw;
+    const okF = k => P(27+k).v>=V && P(29+k).v>=V && P(31+k).v>=V;
+    const flen = (Math.hypot(P(29).x-P(31).x,P(29).y-P(31).y)+Math.hypot(P(30).x-P(32).x,P(30).y-P(32).y))/2;
+    const ok = okF(0) && okF(1) && hipsV && flen>=0.12*leg;
+    this.undet('toe', ok, t);
+    if(!ok){ tw.f.forEach(f=>{ f.prev=null; }); return; }
+    for(const k of [0,1]){
+      const h=P(29+k), f=P(31+k), st=tw.f[k]; const cx=(h.x+f.x)/2, cy=(h.y+f.y)/2;
+      const lift=(f.y-h.y)/Math.max(1,Math.hypot(h.x-f.x,h.y-f.y));
+      if(st.prev){ const sp=Math.hypot(cx-st.prev.x, cy-st.prev.y)/leg/Math.max(1e-3,t-st.prev.t); st.v = st.v==null? sp : 0.5*st.v+0.5*sp; }
+      st.prev={t,x:cx,y:cy};
+      if(st.v==null) continue;
+      if(st.phase!=='swing' && st.v>0.8){ if(st.phase==='stance') this.endStance(k); st.phase='swing'; st.sw={x:cx,y:cy}; }
+      else if(st.phase==='swing' && st.v<0.25){ const disp=st.sw? Math.hypot(cx-st.sw.x, cy-st.sw.y)/leg : 0; st.phase='stance'; st.stance={t, min:lift, step:disp>=0.25, done:false}; }
+      else if(st.phase==='stance'){ st.stance.min=Math.min(st.stance.min, lift); if(t-st.stance.t>=0.8) this.endStance(k); }
+      else if(!st.phase && st.v<0.25) st.phase='still';
+    }
+  }
+  endStance(k){
+    const st=this.tw.f[k], s=st.stance; if(!s || s.done) return; s.done=true; if(!s.step) return;
+    const tw=this.tw;
+    if(s.min>=0.25){ if(tw.ep && s.t-tw.ep.last<=2){ tw.ep.times.push(+s.t.toFixed(2)); tw.ep.last=Math.max(tw.ep.last,s.t); tw.ep.end=tw.ep.last; }
+      else { this.closeToe(); tw.ep={start:s.t, end:s.t, last:s.t, times:[+s.t.toFixed(2)], key:this.keyAt(s.t)}; } }
+    else this.closeToe();   // heel touched the floor: the episode ends
+  }
+  closeToe(){ const e=this.tw.ep; if(e && e.times.length>=2){ e.times.sort((a,b)=>a-b); this.events.push({behavior:'toe', kind:'event', start:e.start, end:e.end, count:e.times.length, times:e.times, detail:`${e.times.length} خطوات على أطراف الأصابع`, key:e.key}); } this.tw.ep=null; }
+  otherStep(t, lm, sw, hip){
+    const o=this.oth, ids=[11,12,13,14,15,16,23,24,25,26,27,28];
+    const cur=ids.map(i=>this.P(lm,i)), ref=hip||{x:(cur[0].x+cur[1].x)/2, y:(cur[0].y+cur[1].y)/2};
+    o.buf=(o.buf||[]).filter(f=>f.t>=t-1); const old=o.buf.filter(f=>f.t<=t-0.2).pop();   // speed over ≥0.2 s, so frame jitter does not look like movement
+    if(old){ const ds=[];
+      cur.forEach((p,i)=>{ const q=old.pts[i]; if(p.v>=this.V && q.v>=this.V) ds.push(Math.hypot((p.x-ref.x)-(q.x-old.ref.x), (p.y-ref.y)-(q.y-old.ref.y))); });
+      ds.sort((a,b)=>b-a); const top=ds.slice(0,4);              // the 4 fastest points: one limb moving clearly is enough
+      const en = ds.length>=6? sum(top)/top.length/sw/(t-old.t) : 0;
+      if(en>1.5){ if(!o.on){ o.on=true; o.t0=old.t; } o.last=t; }
+      else if(o.on && t-o.last>0.5){ o.on=false; if(o.last-o.t0>=1) o.win.push({start:o.t0, end:o.last}); } }
+    o.buf.push({t, pts:cur, ref});
+  }
+  housekeep(t){
+    if(this.j.series && this.j.state==='ground' && t-this.j.series.lastLand>2) this.closeJump();
+    if(this.sp.series && t-this.sp.series.last>3) this.closeSpin();
+    const tw=this.tw; if(tw.ep && t-tw.ep.last>2 && !tw.f.some(f=>f.phase==='stance' && f.stance && !f.stance.done && f.stance.step && f.stance.t>tw.ep.last)) this.closeToe();
+  }
+  drain(){
+    for(const k of ['L','R']){ const o=this.fl[k]; while(o.out.length){ const ep=o.out.shift(); this.addEpisode('flap', ep, k); } }
+    for(const k of ['lean','depth']){ const o=this.rk[k]; while(o.out.length){ const ep=o.out.shift(); const info=(ep.info||[]).filter(Boolean);
+      const hx=info.map(i=>i.hx); if(hx.length && Math.max(...hx)-Math.min(...hx)>1.0) continue;   // the body moved from its place: walking, not rocking
+      const view=info.length? sum(info.map(i=>i.view))/info.length : 1;
+      this.addEpisode('rock', ep, k==='depth'? 'fb' : (view<0.45? 'fb' : 'lr')); } }
   }
   closeBout(){ const c=this.c; if(c.bout){ c.bout.detail = c.bout.count===1? 'تصفيقة واحدة' : `${c.bout.count} تصفيقات متتابعة`; this.events.push(c.bout); c.bout=null; } }
   finish(t){
     if(this.r.on){ const r=this.r; this.events.push({behavior:'raise', kind:'event', start:r.start, end:t, count:1, detail:(r.sides.size>1?'باليدين':'يد واحدة')+' · انتهى الفيديو واليد مرفوعة', key:r.key}); r.on=false; }
     this.closeBout();
+    this.fl.L.settle(); this.fl.R.settle(); this.rk.lean.settle(); this.rk.depth.settle(); this.drain();
+    this.closeJump(); this.closeSpin();
+    this.tw.f.forEach((f,k)=>{ if(f.phase==='stance') this.endStance(k); }); this.closeToe();
+    if(this.oth.on && this.oth.last-this.oth.t0>=1) this.oth.win.push({start:this.oth.t0, end:this.oth.last}); this.oth.on=false;
     BKEYS.forEach(b=>{ if(this.u[b]!=null && t-this.u[b]>=1) this.events.push({behavior:b, kind:'undet', start:this.u[b], end:t}); this.u[b]=null; });
+    for(const e of this.events){
+      if(e.behavior==='flap' && e.tags){ const both=e.tags.has('L')&&e.tags.has('R'); const upF=e.info.length? e.info.filter(i=>i&&i.up).length/e.info.length : 0;
+        e.detail=`${both? 'باليدين' : e.tags.has('L')? 'يد واحدة (اليسرى)' : 'يد واحدة (اليمنى)'} · المدة ${(e.end-e.start).toFixed(1)} ث · نحو ${Math.max(2,Math.floor(e.halves/2))} دورات${upF>0.5? ' · اليد أعلى من الكتف: قد تشبه التلويح، للمراجعة' : ''}`; }
+      if(e.behavior==='rock' && e.tags){ const d=[...e.tags].map(x=>x==='lr'?'للجانبين':'للأمام والخلف'); e.dir=[...new Set(d)].join(' و');
+        e.detail=`${e.dir} · المدة ${(e.end-e.start).toFixed(1)} ث · نحو ${Math.max(2,Math.floor(e.halves/2))} دورات`; }
+      delete e.tags; delete e.info; delete e.halves;
+    }
+    // movement that matched no defined behaviour (any behaviour, targeted or not): listed for review only
+    const evs=this.events.filter(e=>e.kind==='event'); const merged=[];
+    for(const w of this.oth.win){ const m=merged[merged.length-1]; if(m && w.start-m.end<1) m.end=Math.max(m.end,w.end); else merged.push({...w}); }
+    for(const w of merged){ if(evs.some(e=>e.start<=w.end+0.5 && e.end>=w.start-0.5)) continue;
+      this.events.push({behavior:'other', kind:'other', start:w.start, end:w.end, count:0, detail:'حركة لم تطابق أي سلوك معرّف (للمراجعة، لا تُعدّ)', key:this.keyAt(w.start)}); }
     this.events.sort((a,b)=>a.start-b.start);
   }
-  counts(){ const o={raise:0,clap:0,stand:0}; for(const e of this.events) if(e.kind==='event') o[e.behavior]+=e.count||1; if(this.c.bout) o.clap+=this.c.bout.count; return o; }
+  counts(){
+    const o=zeroCounts(); for(const e of this.events) if(e.kind==='event') o[e.behavior]+=e.count||1;
+    if(this.c.bout) o.clap+=this.c.bout.count;
+    if(this.j.series && this.j.series.times.length>=2) o.jump+=this.j.series.times.length;
+    if(this.sp.series) o.spin+=this.sp.series.times.length;
+    if(this.tw.ep && this.tw.ep.times.length>=2) o.toe+=this.tw.ep.times.length;
+    const open=(b,eps)=>eps.filter(Boolean).some(ep=>!this.events.some(e=>e.behavior===b && e.kind==='event' && ep.start<=e.end+2 && ep.end>=e.start-2));
+    if(open('flap',[this.fl.L.ep,this.fl.R.ep])) o.flap++;
+    if(open('rock',[this.rk.lean.ep,this.rk.depth.ep])) o.rock++;
+    return o; }
 }
 
 function vSession(){
   return `<div id="sessionRoot" class="stack" style="gap:22px">
-  ${headBlock(`جلسة رصد · ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+esc(S.child.code):''}`,'رصد من فيديو أو كاميرا','ارفعي فيديو مسجّلًا لجلسة الطفل أو لمتطوع يؤدي الحركات الثلاث. التحليل يجري داخل جهازك إطارًا بإطار، ثم تُحفظ الأحداث كنص فقط.')}
+  ${headBlock(`جلسة رصد · ملف رقم ${fmtFile(S.child.fileNo)}${S.child.code? ' · '+esc(S.child.code):''}`,'رصد من فيديو أو كاميرا','اختاري السلوكيات المستهدفة، ثم ارفعي فيديو مسجّلًا لجلسة الطفل أو لمتطوع يؤدي الحركات، أو شغّلي الكاميرا. التحليل يجري داخل جهازك إطارًا بإطار، ثم تُحفظ الأحداث كنص فقط.')}
   <div class="privacy"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>الفيديو لا يُرفع ولا يُحفظ. يُحلَّل في هذا المتصفح، ويبقى من الجلسة: وقت كل حدث، ونوعه، والهيكل العظمي لحظة الحدث (نقاط بلا صورة) ليتحقق منه الأخصائي.</span></div>
   <div class="grid" style="grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);align-items:start" id="sessGrid">
     <div class="stack">
@@ -837,7 +1142,7 @@ function vSession(){
       </div>
       <div class="progress"><i id="prog"></i></div>
       <div class="status-line" id="status">النموذج يُحمَّل عند أول تحليل (نحو 18 ميغابايت مرة واحدة).</div>
-      <svg class="timeline" id="tl" viewBox="0 0 720 100" direction="ltr" role="img" aria-label="خط زمني للأحداث المرصودة"></svg>
+      <svg class="timeline" id="tl" viewBox="0 0 760 100" direction="ltr" role="img" aria-label="خط زمني للأحداث المرصودة"></svg>
     </div>
     <div class="stack">
       <div class="sheet stack">
@@ -846,6 +1151,12 @@ function vSession(){
         <label class="f">الكاميرا<select id="s_face"><option value="environment">الخلفية (لتصوير الطفل)</option><option value="user">الأمامية</option></select></label>
         <label class="f">معدل التحليل<select id="s_fps"><option value="10">10 إطارات/ث (أسرع)</option><option value="15" selected>15 إطارًا/ث (موصى به)</option><option value="25">25 إطارًا/ث (أدق للتصفيق)</option></select></label>
         <label class="f">مدة الرصد بالكاميرا<select id="s_limit"><option value="60">دقيقة</option><option value="120" selected>دقيقتان</option><option value="180">3 دقائق</option><option value="300">5 دقائق</option><option value="600">10 دقائق</option><option value="0">بدون حد (إيقاف يدوي)</option></select></label>
+        <fieldset class="stack" id="tgtBox" style="gap:6px;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:0">
+          <legend class="small" style="font-weight:600;padding:0 4px">السلوكيات المستهدفة في هذه الجلسة</legend>
+          <div class="tgt-grid">${BKEYS.map(b=>`<label class="check"><input type="checkbox" name="tgt" value="${b}" ${childTargets().includes(b)?'checked':''}> <span class="${BEH[b].cls}" style="font-weight:600">${BEH[b].name}</span></label>`).join('')}</div>
+          <div class="row" style="gap:6px"><button class="btn sm ghost" type="button" data-tgt="all">الكل</button><button class="btn sm ghost" type="button" data-tgt="old">الثلاث الأولى</button><button class="btn sm ghost" type="button" data-tgt="new">الست الجديدة</button></div>
+          <span class="small muted">غير المختار لا يُعدّ ولا يُحفظ. المشي على أطراف الأصابع يحتاج تصويرًا من الجانب، والرفرفة أدق بمعدل 25 إطارًا/ث.</span>
+        </fieldset>
         <div class="mk-box stack" style="gap:8px">
           <label class="check"><input type="checkbox" id="s_mk" ${S.child.markerOn?'checked':''}> تتبّع الطفل بعلامة لونية (ستكر مطبوع أو صدرية) عند وجود أطفال آخرين</label>
           <div class="row" id="mkRow" ${S.child.markerOn?'':'hidden'} style="gap:8px">
@@ -872,26 +1183,32 @@ function vSession(){
     </div>
   </div></div>`;
 }
-function renderCounters(cn, co){
+const selTargets = () => { const v=[...document.querySelectorAll('input[name=tgt]:checked')].map(x=>x.value); return BKEYS.filter(b=>v.includes(b)); };
+const liveKeys = () => (run && run.targets) || (document.querySelector('input[name=tgt]')? selTargets() : childTargets());
+function renderCounters(cn, co, keys){
+  keys = keys || liveKeys();
   co = co || {per:Object.fromEntries(BKEYS.map(b=>[b,{solo:cn[b],sync:0}])), episodes:[], combos:{}};
-  const solo = b => b==='clap'? Math.max(0, cn[b]-co.per[b].sync) : co.per[b].solo;
-  $('#liveCounters').innerHTML = BKEYS.map(b=>`<div class="counter ${BEH[b].cls}" style="padding:10px 12px"><span class="lbl small">${BEH[b].name} (منفرد)</span><span class="n num">${solo(b)}</span>${co.per[b].sync?`<span class="sub">ومتزامن: <b class="num">${co.per[b].sync}</b></span>`:''}</div>`).join('')
+  const solo = b => Math.max(0, cn[b]-co.per[b].sync);
+  $('#liveCounters').innerHTML = (keys.length? '' : '<p class="small muted" style="grid-column:1/-1">اختاري سلوكًا واحدًا على الأقل.</p>') + keys.map(b=>`<div class="counter ${BEH[b].cls}" style="padding:10px 12px"><span class="lbl small">${BEH[b].name} (منفرد)</span><span class="n num">${solo(b)}</span><span class="sub">${BEH[b].unit}${co.per[b].sync?` · ومتزامن: <b class="num">${co.per[b].sync}</b>`:''}</span></div>`).join('')
     + `<div class="counter sync" style="padding:10px 12px"><span class="lbl small">أفعال متزامنة</span><span class="n num">${co.episodes.length}</span>${co.episodes.length?`<div class="combo-list">${Object.entries(co.combos).map(([k,v])=>`<span>${k}: <b class="num">${v}</b></span>`).join('')}</div>`:''}</div>`;
 }
-function drawTimeline(events, dur){
-  const svg=$('#tl'); if(!svg) return; dur=Math.max(dur||1,1);
+function drawTimeline(events, dur, keys){
+  const svg=$('#tl'); if(!svg) return; dur=Math.max(dur||1,1); keys = keys || liveKeys();
+  const rows=[...keys]; if(events.some(e=>e.kind==='other')) rows.push('other');
   const X = t => 10 + (t/dur)*590;
   let s='';
-  BKEYS.forEach((b,i)=>{ const y=8+i*26;
+  rows.forEach((b,i)=>{ const y=8+i*26;
     s+=`<line x1="10" x2="600" y1="${y+9}" y2="${y+9}" stroke="var(--rule)" stroke-width="14"/>`;
     for(const e of events.filter(e=>e.behavior===b)){
       if(e.kind==='undet') s+=`<rect x="${X(e.start)}" y="${y+3}" width="${Math.max(2,X(e.end)-X(e.start))}" height="12" fill="var(--line)"/>`;
-      else s+=`<rect x="${X(e.start)}" y="${y+1}" width="${Math.max(3,X(e.end)-X(e.start))}" height="16" rx="2" fill="var(${BEH[b].varc})"/>`;
+      else if(MULTI.has(b) && e.times && e.times.length) e.times.forEach(tt=>{ s+=`<rect x="${X(tt)-1.5}" y="${y+1}" width="3" height="16" rx="1" fill="var(${BEH[b].varc})"/>`; });
+      else s+=`<rect x="${X(e.start)}" y="${y+1}" width="${Math.max(3,X(e.end)-X(e.start))}" height="16" rx="2" fill="var(${BEH[b].varc})" ${e.kind==='other'?'opacity=".55"':''}/>`;
     }
     s+=`<text x="612" y="${y+13}" font-size="11.5" fill="var(--ink)">${BEH[b].name}</text>`;
   });
-  s+=`<text x="10" y="94" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">0:00</text><text x="600" y="94" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Mono, monospace">${fmtT(dur)}</text>`;
-  svg.innerHTML=s;
+  const H=Math.max(100, 8+rows.length*26+18);
+  s+=`<text x="10" y="${H-6}" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono, monospace">0:00</text><text x="600" y="${H-6}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="IBM Plex Mono, monospace">${fmtT(dur)}</text>`;
+  svg.setAttribute('viewBox', `0 0 760 ${H}`); svg.innerHTML=s;
 }
 function drawOverlay(lm, W, H){
   const cv=$('#ovl'); if(!cv) return; cv.width=W; cv.height=H; const g=cv.getContext('2d'); g.clearRect(0,0,W,H);
@@ -906,7 +1223,10 @@ function drawOverlay(lm, W, H){
 }
 function setStatus(t){ const s=$('#status'); if(s) s.textContent=t; }
 afterRender.session = ()=>{
-  renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60);
+  renderCounters(zeroCounts()); drawTimeline([],60);
+  const tgtSave = async ()=>{ const v=selTargets(); renderCounters(zeroCounts()); drawTimeline([],60); if(!S.child) return; S.child.targets=v; const rec={...S.child}; delete rec.id; try{ await Store.set('children', S.childId, rec); }catch(err){} };
+  $('#tgtBox').addEventListener('change', tgtSave);
+  $('#tgtBox').addEventListener('click', e=>{ const b=e.target.closest('[data-tgt]'); if(!b) return; const want = b.dataset.tgt==='all'? BKEYS : b.dataset.tgt==='old'? OLD3 : BKEYS.filter(k=>!OLD3.includes(k)); document.querySelectorAll('input[name=tgt]').forEach(x=>{ x.checked=want.includes(x.value); }); tgtSave(); });
   $('#s_file').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) analyzeFile(f); e.target.value=''; });
   $('#s_cam').addEventListener('click', startCamera);
   $('#stage').addEventListener('click', pickAt);
@@ -915,7 +1235,7 @@ afterRender.session = ()=>{
   $('#s_mk').addEventListener('change', async e=>{ S.child.markerOn=e.target.checked; $('#mkRow').hidden=!e.target.checked; const rec={...S.child}; delete rec.id; try{ await Store.set('children', S.childId, rec); }catch(err){} });
   $('#s_stop').addEventListener('click', ()=>{ if(run) run.stop=true; });
   $('#s_save').addEventListener('click', saveRun);
-  $('#s_discard').addEventListener('click', ()=>{ run=null; $('#saveBox').hidden=true; renderCounters({raise:0,clap:0,stand:0}); drawTimeline([],60); setStatus('أُلغيت النتائج.'); });
+  $('#s_discard').addEventListener('click', ()=>{ run=null; $('#saveBox').hidden=true; renderCounters(zeroCounts()); drawTimeline([],60); setStatus('أُلغيت النتائج.'); });
   ensurePose().then(()=>{ if(!run) setStatus(consentBlock()? 'النموذج جاهز. '+consentBlock() : 'النموذج جاهز. اختاري فيديو أو شغّلي الكاميرا.'); }).catch(()=>{});
 };
 function seek(v,t){ return new Promise(res=>{ const h=()=>{ v.removeEventListener('seeked',h); res(); }; v.addEventListener('seeked',h); v.currentTime=t; }); }
@@ -936,14 +1256,15 @@ async function analyzeFile(file){
   const W=v.videoWidth, H=v.videoHeight, dur=v.duration, fps=+$('#s_fps').value, step=1/fps;
   const det=new Detector(W,H);
   picking=null; $('#stage').classList.remove('picking');
-  run={active:true, stop:false, det, duration:dur, source:'video', fps, fileName:file.name, mk:{used:useMarker(), frames:0}};
+  { const tg=selTargets(); if(!tg.length){ setStatus('اختاري سلوكًا واحدًا على الأقل.'); return; } }
+  run={active:true, stop:false, det, duration:dur, source:'video', fps, fileName:file.name, mk:{used:useMarker(), frames:0}, targets:selTargets()}; lockTargets(true);
   $('#s_stop').hidden=false; $('#s_cam').disabled=true;
   const t0=performance.now(); let n=0;
   for(let t=0; t<dur && !run.stop; t+=step){
     await seek(v,t);
     const res = await estimate(v,W,H); const lm=res.lm; trackStat(res);
     det.update(t, lm); n++;
-    if(n%3===0){ drawOverlay(lm,W,H); drawMarker(res,W,H); renderCounters(det.counts(), cooccur(det.events)); $('#prog').style.width=(t/dur*100)+'%';
+    if(n%3===0){ drawOverlay(lm,W,H); drawMarker(res,W,H); renderCounters(det.counts(), cooccur(det.events.filter(keepEv))); $('#prog').style.width=(t/dur*100)+'%';
       const sp=(t/((performance.now()-t0)/1000)); setStatus(`يحلّل ${fmtT(t)} من ${fmtT(dur)} · سرعة ${sp.toFixed(1)}×${markerStatus(res)}`);
       if(n%15===0) drawTimeline(det.events, dur); }
   }
@@ -965,7 +1286,8 @@ async function startCamera(){
   const W=v.videoWidth, H=v.videoHeight; const det=new Detector(W,H);
   const limit=+$('#s_limit').value||0;
   picking=null; $('#stage').classList.remove('picking');
-  run={active:true, stop:false, det, source:'camera', fps:null, limit, mk:{used:useMarker(), frames:0}}; $('#s_stop').hidden=false; $('#s_cam').disabled=true;
+  if(!selTargets().length){ setStatus('اختاري سلوكًا واحدًا على الأقل.'); stopCamera(); return; }
+  run={active:true, stop:false, det, source:'camera', fps:null, limit, mk:{used:useMarker(), frames:0}, targets:selTargets()}; lockTargets(true); $('#s_stop').hidden=false; $('#s_cam').disabled=true;
   const stage=$('#stage'); const cd=document.createElement('div'); cd.className='cd'; stage.appendChild(cd);
   for(let k=5;k>0 && !run.stop;k--){ cd.textContent=k; setStatus('يبدأ الرصد بعد '+k+' ث… خذي مكانك أمام الكاميرا والجسم كامل في الصورة'); await new Promise(r=>setTimeout(r,1000)); }
   cd.remove();
@@ -974,7 +1296,7 @@ async function startCamera(){
     const res=await estimate(v,W,H); const t=(performance.now()-t0)/1000; const lm=res.lm; trackStat(res);
     if(limit && t>=limit){ reachedLimit=true; break; }
     det.update(t,lm); drawOverlay(lm,W,H); drawMarker(res,W,H); n++;
-    if(n%5===0 || n===1){ renderCounters(det.counts(), cooccur(det.events)); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو${markerStatus(res)}`); drawTimeline(det.events, Math.max(limit||60,t)); }
+    if(n%5===0 || n===1){ renderCounters(det.counts(), cooccur(det.events.filter(keepEv))); setStatus(`رصد مباشر · ${fmtT(t)}${limit? ` · يتبقى ${fmtT(Math.max(0,limit-t))}` : ''} · لا يُسجَّل أي فيديو${markerStatus(res)}`); drawTimeline(det.events, Math.max(limit||60,t)); }
     await new Promise(r=>requestAnimationFrame(r));
   }
   run.reachedLimit=reachedLimit;
@@ -982,24 +1304,29 @@ async function startCamera(){
   stopCamera(); $('#s_stop').hidden=true; $('#s_cam').disabled=false; finishRun();
 }
 function stopCamera(){ try{ wakeLock?.release(); }catch(e){} wakeLock=null; if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; } if(run && run.active && run.source==='camera') run.stop=true; }
+const keepEv = e => e.kind==='other' || !run || !run.targets || run.targets.includes(e.behavior);
+function lockTargets(on){ document.querySelectorAll('#tgtBox input, #tgtBox button').forEach(x=>{ x.disabled=on; }); }
 function finishRun(){
-  const det=run.det, cn=det.counts(), co=cooccur(det.events); renderCounters(cn, co); drawTimeline(det.events, run.duration);
-  const und=det.events.filter(e=>e.kind==='undet');
-  setStatus(`${run.reachedLimit? 'انتهت المدة المحددة. ' : ''}انتهى التحليل: ${fmtDur(run.duration)}${und.length? ` · فترات غير قابلة للتحديد: ${und.length}` : ''}.`);
+  lockTargets(false);
+  const det=run.det; run.events=det.events.filter(keepEv);
+  const cn=zeroCounts(); run.events.forEach(e=>{ if(e.kind==='event') cn[e.behavior]+=e.count||1; });
+  const co=cooccur(run.events); renderCounters(cn, co, run.targets); drawTimeline(run.events, run.duration, run.targets);
+  const und=run.events.filter(e=>e.kind==='undet'), oth=run.events.filter(e=>e.kind==='other');
+  setStatus(`${run.reachedLimit? 'انتهت المدة المحددة. ' : ''}انتهى التحليل: ${fmtDur(run.duration)}${und.length? ` · فترات غير قابلة للتحديد: ${und.length}` : ''}${oth.length? ` · حركات خارج الفئات: ${oth.length}` : ''}.`);
   const mkPct = run.mk && run.mk.used && run.mk.frames? Math.round(100*(run.mk.ok||0)/run.mk.frames) : null;
-  $('#saveSummary').textContent = (mkPct!=null? `تتبّع بالعلامة: الطفل محدَّد في ${mkPct}% من الإطارات، وما عداها سُجّل «غير قابل للتحديد». ` : '') + `رُصد منفردًا: ${BKEYS.map(b=>`${BEH[b].name} ${co.per[b].solo}`).join('، ')}. أفعال متزامنة: ${co.episodes.length}${co.episodes.length? ' ('+syncLine(co)+')':''}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
+  $('#saveSummary').textContent = (mkPct!=null? `تتبّع بالعلامة: الطفل محدَّد في ${mkPct}% من الإطارات، وما عداها سُجّل «غير قابل للتحديد». ` : '') + `رُصد منفردًا: ${run.targets.map(b=>`${BEH[b].name} ${co.per[b].solo}`).join('، ')}. أفعال متزامنة: ${co.episodes.length}${co.episodes.length? ' ('+syncLine(co)+')':''}. كل الأحداث تُحفظ «مقترحة» حتى يعتمدها الأخصائي.`;
   $('#saveBox').hidden=false;
 }
 async function saveRun(){
   if(!run) return; const btn=$('#s_save'); btn.disabled=true;
   const id=uid();
   const mkInfo = run.mk && run.mk.used? {used:true, color:S.child.marker, frames:run.mk.frames, ok:run.mk.ok||0, missing:run.mk.missing||0, mismatch:(run.mk.mismatch||0)+(run.mk.nopose||0)} : null;
-  const ses={ id, childId:S.childId, marker:mkInfo, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), clapTimes:run.det.clapTimes.map(x=>+x.toFixed(2)), spec:{} };
+  const ses={ id, childId:S.childId, marker:mkInfo, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), targets:run.targets, clapTimes:run.targets.includes('clap')? run.det.clapTimes.map(x=>+x.toFixed(2)) : [], spec:{} };
   try{
     await Store.set('sessions', id, ses);
-    for(const e of run.det.events){
+    for(const e of run.events){
       const eid=uid();
-      await Store.set('events', eid, { sessionId:id, behavior:e.behavior, kind:e.kind, start:+e.start.toFixed(2), end:+e.end.toFixed(2), count:e.count||0, times:e.times||[], detail:e.detail||'', key:e.key||[], status: e.kind==='event'?'pending':'undet', context:'', note:'' });
+      await Store.set('events', eid, { sessionId:id, behavior:e.behavior, kind:e.kind, start:+e.start.toFixed(2), end:+e.end.toFixed(2), count:e.count||0, times:e.times||[], detail:e.detail||'', key:e.key||[], status: e.kind==='event'?'pending': e.kind==='other'?'other':'undet', context:'', note:'' });
     }
   }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); btn.disabled=false; return; }
   run=null; await loadAll(); toast('حُفظت الجلسة في ملف '+fmtFile(S.child.fileNo)+'. الأحداث بانتظار المراجعة');
@@ -1028,8 +1355,8 @@ function vReview(){
   ${headBlock('مراجعة الأحداث','يعتمد الأخصائي كل حدث','النظام يقترح؛ لا يدخل حدث التقرير إلا بعد اعتماده. السياق يُكتب بصيغة «بعد…» لا «بسبب…»: المطلوب وصف ما سبق السلوك دون الجزم بالسبب.')}
   <div class="sheet row">
     <label class="f" style="flex:2 1 200px">الجلسة<select id="f_s"><option value="all">كل الجلسات</option>${S.sessions.map(s=>`<option value="${s.id}" ${f.session===s.id?'selected':''}>${esc(s.date)} · ${esc(s.label)}</option>`).join('')}</select></label>
-    <label class="f" style="flex:1 1 140px">السلوك<select id="f_b"><option value="all">الكل</option>${BKEYS.map(b=>`<option value="${b}" ${f.beh===b?'selected':''}>${BEH[b].name}</option>`).join('')}</select></label>
-    <label class="f" style="flex:1 1 140px">الحالة<select id="f_st">${[['all','الكل'],['pending','مقترح'],['approved','معتمد'],['rejected','مرفوض'],['undet','غير قابل للتحديد']].map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${l}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1 1 140px">السلوك<select id="f_b"><option value="all">الكل</option>${[...BKEYS,'other'].map(b=>`<option value="${b}" ${f.beh===b?'selected':''}>${BEH[b].name}</option>`).join('')}</select></label>
+    <label class="f" style="flex:1 1 140px">الحالة<select id="f_st">${[['all','الكل'],['pending','مقترح'],['approved','معتمد'],['rejected','مرفوض'],['undet','غير قابل للتحديد'],['other','خارج الفئات']].map(([k,l])=>`<option value="${k}" ${f.status===k?'selected':''}>${l}</option>`).join('')}</select></label>
     ${list.some(e=>e.status==='pending')?`<button class="btn" id="approveAll" style="align-self:flex-end">اعتماد كل المعروض المقترح</button>`:''}
   </div>
   <div class="sheet flush"><div class="tbl-wrap">
@@ -1039,14 +1366,14 @@ function vReview(){
     <td data-l="السلوك"><span class="chip ${BEH[e.behavior].cls}">${BEH[e.behavior].name}</span></td>
     <td data-l="الوقت"><span class="num">${fmtT(e.start)} – ${fmtT(e.end)}</span></td>
     <td data-l="التفاصيل" class="small">${e.kind==='undet'?'الحركة محجوبة أو خارج الإطار':esc(e.detail)}${e.kind==='event'?syncTag(e):''}</td>
-    <td data-l="العدد">${e.kind==='event'? (e.behavior==='clap'? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="عدد التصفيقات">` : `<span class="num">1</span>`) : '—'}</td>
+    <td data-l="العدد">${e.kind==='event'? (MULTI.has(e.behavior)? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="العدد (${BEH[e.behavior].unit})">` : `<span class="num">1</span>${BEH[e.behavior].episodic? ` <span class="small muted">${BEH[e.behavior].unit}</span>`:''}`) : '—'}</td>
     <td data-l="ما حدث قبله (السياق)">${e.kind==='event'?`<input type="text" class="ctx" data-ctx value="${esc(e.context)}" placeholder="بعد…" aria-label="السياق">`:''}</td>
     <td data-l="الحالة">${statusPill(e.status)}</td>
     <td data-l="القرار">${e.kind==='event'?`<div class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn sm" data-act="approved">اعتماد</button><button class="btn sm ghost danger" data-act="rejected">رفض</button></div>`:''}</td>
   </tr>`).join('')}</tbody></table>` : `<p class="muted" style="padding:20px">لا توجد أحداث بهذه التصفية.</p>`}
   </div></div>`;
 }
-function statusPill(s){ return `<span class="pill p-${s}">${{pending:'مقترح',approved:'معتمد',rejected:'مرفوض',undet:'غير قابل للتحديد'}[s]||s}</span>`; }
+function statusPill(s){ return `<span class="pill p-${s}">${{pending:'مقترح',approved:'معتمد',rejected:'مرفوض',undet:'غير قابل للتحديد',other:'خارج الفئات · للاطلاع'}[s]||s}</span>`; }
 afterRender.review = ()=>{
   const re=()=>{ S.reviewFilter={session:$('#f_s').value, beh:$('#f_b').value, status:$('#f_st').value}; render(); };
   ['#f_s','#f_b','#f_st'].forEach(s=>$(s).addEventListener('change',re));
@@ -1079,11 +1406,13 @@ function matchTimes(sys, spec){
 }
 function sessionIOA(s){
   const res={}; let num=0, den=0;
-  for(const b of BKEYS){
+  const keys=sesKeys(s); res.keys=keys;
+  for(const b of keys){
     const evs=evOf(s.id,b).filter(e=>e.kind==='event');
-    const sysCount=sum(evs.map(e=>e.behavior==='clap'? (e.times?.length||e.count||1) : 1));
-    const sysTimes = b==='clap' ? (s.clapTimes&&s.clapTimes.length? s.clapTimes : evs.flatMap(e=>e.times||[e.start])) : evs.map(e=>e.start);
+    const sysCount=sum(evs.map(e=>MULTI.has(b)? (e.times?.length||e.count||1) : 1));
+    const sysTimes = b==='clap' && s.clapTimes && s.clapTimes.length? s.clapTimes : MULTI.has(b)? evs.flatMap(e=>(e.times&&e.times.length)? e.times : [e.start]).sort((x,y)=>x-y) : evs.map(e=>e.start);
     const sp=(s.spec||{})[b]; const r={sysCount, sysTimes};
+    if(BEH[b].episodic){ r.sysDur=sum(evs.map(e=>Math.max(0,e.end-e.start))); if(sp && sp.dur!=null && String(sp.dur).trim()!==''){ r.specDur=+sp.dur; const mx=Math.max(r.specDur,r.sysDur), mn=Math.min(r.specDur,r.sysDur); r.durIoa = mx===0? 100 : mn/mx*100; } }
     if(sp && sp.count!=null && sp.count!==''){
       const a=+sp.count; r.specCount=a; const mx=Math.max(a,sysCount), mn=Math.min(a,sysCount);
       r.total = mx===0? 100 : mn/mx*100; num+=mn; den+=mx;
@@ -1099,7 +1428,7 @@ function sessionIOA(s){
     }
     res[b]=r;
   }
-  res.overall = den? num/den*100 : (BKEYS.some(b=>res[b].specCount!=null)? 100 : null);
+  res.overall = den? num/den*100 : (keys.some(b=>res[b].specCount!=null)? 100 : null);
   return res;
 }
 function verdict(v){ if(v==null) return ''; return v>=IOA_GOOD? `<span class="verdict" style="color:var(--good)">ممتاز (≥ ${IOA_GOOD}%)</span>` : v>=IOA_OK? `<span class="verdict" style="color:var(--good)">مقبول (≥ ${IOA_OK}%)</span>` : `<span class="verdict" style="color:var(--bad)">دون المعيار — راجعي التعريف أو زاوية الكاميرا</span>`; }
@@ -1112,13 +1441,16 @@ function vIoa(){
   <div class="sheet row"><label class="f" style="flex:1 1 260px">الجلسة<select id="i_s">${S.sessions.map(x=>`<option value="${x.id}" ${x.id===s.id?'selected':''}>${esc(x.date)} · ${esc(x.label)}</option>`).join('')}</select></label>
   <div class="stack" style="flex:1 1 220px;gap:4px"><span class="small muted">الاتفاق الكلي (كل السلوكيات)</span><span class="num" style="font-family:var(--display);font-size:1.6rem;font-weight:700">${pct(R.overall)}</span>${verdict(R.overall)}</div></div>
   <form id="ioaForm" class="grid g3">
-  ${BKEYS.map(b=>{ const r=R[b], sp=(s.spec||{})[b]||{}; return `<div class="sheet beh-card ${BEH[b].cls}"><div class="inner">
+  ${R.keys.map(b=>{ const r=R[b], sp=(s.spec||{})[b]||{}; return `<div class="sheet beh-card ${BEH[b].cls}"><div class="inner">
     <h3>${BEH[b].name}</h3>
-    <div class="row" style="justify-content:space-between"><span class="small muted">عدّ النظام (قبل المراجعة)</span><span class="num" style="font-weight:600">${r.sysCount}</span></div>
-    <label class="f">عدّ الأخصائية<input type="number" min="0" id="sc_${b}" value="${esc(sp.count??'')}" class="num"></label>
+    <div class="row" style="justify-content:space-between"><span class="small muted">عدّ النظام (قبل المراجعة)</span><span class="num" style="font-weight:600">${r.sysCount} ${BEH[b].unit}</span></div>
+    ${BEH[b].episodic? `<div class="row" style="justify-content:space-between"><span class="small muted">مجموع المدة عند النظام</span><span class="num" style="font-weight:600">${r.sysDur.toFixed(1)} ث</span></div>` : ''}
+    <label class="f">عدّ الأخصائية (${BEH[b].unit})<input type="number" min="0" id="sc_${b}" value="${esc(sp.count??'')}" class="num"></label>
+    ${BEH[b].episodic? `<label class="f">مجموع مدة النوبات عند الأخصائية (ثوانٍ، اختياري)<input type="number" min="0" step="0.1" id="sd_${b}" value="${esc(sp.dur??'')}" class="num"></label>` : ''}
     <label class="f">أوقات الأخصائية (اختياري، مثل 0:12, 1:03.5)<input type="text" id="st_${b}" value="${esc(sp.times??'')}" class="num" style="text-align:left"></label>
     <hr>
     ${gauge(r.total,'اتفاق العدّ الكلي', `var(${BEH[b].varc})`)}
+    ${r.durIoa!=null? gauge(r.durIoa,'اتفاق المدة الكلية', `var(${BEH[b].varc})`) : ''}
     ${r.interval!=null? gauge(r.interval,`اتفاق الفترات (${INTERVAL} ث × ${r.intervals})`, `var(${BEH[b].varc})`) : ''}
     ${r.f1!=null? `<table><tbody><tr><td class="small">صحيح / زائد / فائت</td><td class="num">${r.tp} / ${r.fp} / ${r.fn}</td></tr><tr><td class="small">الدقة (Precision)</td><td class="num">${pct(r.precision)}</td></tr><tr><td class="small">الاستدعاء (Recall)</td><td class="num">${pct(r.recall)}</td></tr><tr><td class="small">F1</td><td class="num">${pct(r.f1)}</td></tr></tbody></table><p class="small muted">التطابق ضمن ±${TOL} ثانية.</p>` : `<p class="small muted">أدخلي الأوقات لحساب الدقة والاستدعاء.</p>`}
   </div></div>`; }).join('')}
@@ -1128,9 +1460,13 @@ function vIoa(){
 }
 function behaviorRows(s,R){
   const co=cooccur(evOf(s.id));
-  return BKEYS.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event'); const cp=co.per[b];
-    const extra = b==='raise'? (()=>{ const both=evs.filter(e=>/باليدين/.test(e.detail||'')).length; return `باليدين ${both}، بيد واحدة ${evs.length-both}`; })() : b==='clap'? `${evs.length} نوبة تصفيق` : '';
-    return {b, name:BEH[b].name, solo:cp.solo, sync:cp.sync, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall}; });
+  return R.keys.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event'); const cp=co.per[b];
+    const both=evs.filter(e=>/باليدين/.test(e.detail||'')).length;
+    const extra = b==='raise'? `باليدين ${both}، بيد واحدة ${evs.length-both}` : b==='clap'? `${evs.length} نوبة تصفيق`
+      : b==='flap'? `باليدين ${both}، بيد واحدة ${evs.length-both} · المدة الكلية ${r.sysDur.toFixed(1)} ث`
+      : b==='rock'? `${['للجانبين','للأمام والخلف'].map(d=>`${d} ${evs.filter(e=>(e.detail||'').includes(d)).length}`).join('، ')} · المدة الكلية ${r.sysDur.toFixed(1)} ث`
+      : b==='jump'? `${evs.length} سلسلة قفز` : b==='toe'? `${evs.length} نوبة` : '';
+    return {b, name:BEH[b].name, unit:BEH[b].unit, solo:cp.solo, sync:cp.sync, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall, sysDur:r.sysDur, specDur:r.specDur, durIoa:r.durIoa}; });
 }
 function behaviorReportText(s,R){
   const rows=behaviorRows(s,R), L=[];
@@ -1142,16 +1478,18 @@ function behaviorReportText(s,R){
   L.push('(مخرجات النظام قبل مراجعة الأخصائي)');
   L.push('');
   for(const r of rows){
-    L.push(`${r.name}: منفرد ${r.solo} · متزامن ${r.sync} · المجموع ${r.sys}${r.extra? ' ('+r.extra+')':''}`);
+    L.push(`${r.name} (${r.unit}): منفرد ${r.solo} · متزامن ${r.sync} · المجموع ${r.sys}${r.extra? ' ('+r.extra+')':''}`);
+    if(r.durIoa!=null) L.push(`  المدة: النظام ${r.sysDur.toFixed(1)} ث · الأخصائية ${r.specDur} ث · اتفاق المدة ${pct(r.durIoa)}`);
     L.push(`  أوقات النظام: ${r.times.length? r.times.join('، ') : '—'}`);
-    if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} مرة${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
+    if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} ${r.unit}${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
     else L.push('  الأخصائية: لم يُسجَّل عدّها بعد');
   }
   const co=cooccur(evOf(s.id));
   L.push(''); L.push(`الأفعال المتزامنة (خانة مستقلة): ${co.episodes.length}`);
   co.episodes.forEach(x=>L.push(`  ${x.label} · ${fmtT(x.start)}–${fmtT(x.end)}${x.claps? ` · تصفيقات ${x.claps}`:''}`));
-  const und=evOf(s.id).filter(e=>e.kind==='undet');
+  const und=evOf(s.id).filter(e=>e.kind==='undet'), oth=evOf(s.id).filter(e=>e.kind==='other');
   L.push(''); L.push(`فترات غير قابلة للتحديد: ${und.length}${und.length? ' ('+und.map(e=>BEH[e.behavior].name+' '+fmtT(e.start)+'–'+fmtT(e.end)).join('، ')+')':''}`);
+  L.push(`حركات خارج الفئات المحددة (للاطلاع، لا تُعدّ): ${oth.length}${oth.length? ' ('+oth.map(e=>fmtT(e.start)+'–'+fmtT(e.end)).join('، ')+')':''}`);
   return L.join('\n');
 }
 function behaviorReportHTML(s,R){
@@ -1159,8 +1497,8 @@ function behaviorReportHTML(s,R){
   return `<div class="sheet stack">
     <div class="row" style="justify-content:space-between"><div class="stack" style="gap:2px"><h2>تقرير كل سلوك</h2><p class="small muted">مخرجات النظام كما رصدها قبل مراجعة الأخصائي، لمقارنتها بتقرير الأخصائية للجلسة نفسها.</p></div>
     <div class="row"><button class="btn primary" id="br_copy" type="button">نسخ التقرير لإرساله</button><button class="btn" id="br_csv" type="button">تنزيل CSV</button></div></div>
-    <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>أوقات النظام</th><th>عدّ الأخصائية (المجموع)</th><th>اتفاق العدّ</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="num">${r.solo}</td><td class="num">${r.sync}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:300px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
+    <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>الوحدة</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>أوقات النظام</th><th>عدّ الأخصائية (المجموع)</th><th>اتفاق العدّ</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="small">${r.unit}</td><td class="num">${r.solo}</td><td class="num">${r.sync}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:300px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
     </tbody></table></div>
     ${(()=>{ const co=cooccur(evOf(s.id)); return `<div class="stack" style="gap:6px"><h3>الأفعال المتزامنة <span class="pill p-sync num">${co.episodes.length}</span></h3>${co.episodes.length? `<div class="tbl-wrap"><table><thead><tr><th>السلوكان معًا</th><th>الوقت</th><th>التصفيقات داخله</th></tr></thead><tbody>${co.episodes.map(x=>`<tr><td>${x.label}</td><td class="num">${fmtT(x.start)} – ${fmtT(x.end)}</td><td class="num">${x.claps||'—'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small muted">لم يحدث سلوكان في الوقت نفسه في هذه الجلسة.</p>'}</div>`; })()}
     <textarea id="br_text" class="out" hidden readonly></textarea>
@@ -1179,13 +1517,14 @@ afterRender.ioa = ()=>{
   const sel=$('#i_s'); if(!sel) return;
   $('#br_copy').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); copyText(behaviorReportText(s,sessionIOA(s)), $('#br_text')); });
   $('#br_csv').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); const rows=behaviorRows(s,sessionIOA(s));
-    const out=[['experiment','file_number','session','date','duration_s','behavior','solo','simultaneous','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1']];
-    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.solo,r.sync,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),r.total==null?'':r.total.toFixed(1),r.precision==null?'':r.precision.toFixed(1),r.recall==null?'':r.recall.toFixed(1),r.f1==null?'':r.f1.toFixed(1)]));
-    cooccur(evOf(s.id)).episodes.forEach(x=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,'متزامن: '+x.label,'','',1,fmtT(x.start)+'-'+fmtT(x.end),'','','','','','']));
+    const out=[['experiment','file_number','session','date','duration_s','behavior','unit','solo','simultaneous','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1','system_duration_s','specialist_duration_s','duration_ioa']];
+    const f1=v=>v==null?'':(+v).toFixed(1);
+    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.unit,r.solo,r.sync,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),f1(r.total),f1(r.precision),f1(r.recall),f1(r.f1),f1(r.sysDur),r.specDur??'',f1(r.durIoa)]));
+    cooccur(evOf(s.id)).episodes.forEach(x=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,'متزامن: '+x.label,'فعل متزامن','','',1,fmtT(x.start)+'-'+fmtT(x.end),'','','','','','','','','']));
     saveFile(`behavior-report-${fmtFile(S.child.fileNo)}-${s.date}.csv`, '\ufeff'+out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n')); });
   sel.addEventListener('change',()=>{ S.ioaSession=sel.value; render(); });
   $('#ioaForm').addEventListener('submit', async e=>{ e.preventDefault(); const s=sessionById(S.ioaSession); const spec={};
-    BKEYS.forEach(b=>{ spec[b]={count:$('#sc_'+b).value, times:$('#st_'+b).value.trim()}; });
+    sesKeys(s).forEach(b=>{ spec[b]={count:$('#sc_'+b).value, times:$('#st_'+b).value.trim()}; if($('#sd_'+b)) spec[b].dur=$('#sd_'+b).value; });
     try{ await Store.update('sessions',s.id,{spec}); s.spec=spec; toast('حُسب الاتفاق'); render(); }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); } });
 };
 
@@ -1196,13 +1535,15 @@ function weekData(){
   const days=[...Array(7)].map((_,i)=>{ const d=new Date(start+'T00:00:00'); d.setDate(d.getDate()+i); return ymd(d); });
   const ses=S.sessions.filter(s=>days.includes(s.date));
   const ok = e => e.kind==='event' && (e.status==='approved' || (S.includePending && e.status==='pending'));
+  const keys = ses.length? keysFor(ses) : childTargets();
   const per={}; BKEYS.forEach(b=>per[b]=days.map(d=>sum(S.events.filter(e=>e.behavior===b && ok(e) && sessionById(e.sessionId)?.date===d).map(evCount))));
+  const dur={}; BKEYS.forEach(b=>{ dur[b]=sum(S.events.filter(e=>e.behavior===b && ok(e) && ses.some(s=>s.id===e.sessionId)).map(e=>Math.max(0,e.end-e.start))); });
   const hours=sum(ses.map(s=>s.duration||0))/3600;
   const undet=sum(S.events.filter(e=>e.kind==='undet' && ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start));
   const ctx=S.events.filter(e=>ok(e) && e.context && ses.some(s=>s.id===e.sessionId)).map(e=>({behavior:BEH[e.behavior].name, date:sessionById(e.sessionId).date, time:fmtT(e.start), context:e.context, detail:e.detail}));
   const raiseDur=S.events.filter(e=>e.behavior==='raise'&&ok(e)&&ses.some(s=>s.id===e.sessionId)).map(e=>e.end-e.start);
   const co=mergeCo(ses.map(x=>cooccur(evOf(x.id).filter(ok))));
-  return {start, days, ses, per, hours, undet, ctx, raiseDur, co};
+  return {start, days, ses, per, hours, undet, ctx, raiseDur, co, keys, dur};
 }
 function barChart(vals, days, color, title){
   const mx=Math.max(4, ...vals); const step = mx<=8?2: mx<=20?5:10; const top=Math.ceil(mx/step)*step;
@@ -1223,9 +1564,9 @@ function vReport(){
     <label class="check" style="align-self:flex-end"><input type="checkbox" id="r_pend" ${S.includePending?'checked':''}> تضمين الأحداث المقترحة غير المعتمدة</label>
     <span class="small muted" style="align-self:flex-end">${D.ses.length} جلسة · ملاحظة ${fmtDur(hrs*3600)}</span>
   </div>
-  <div class="grid g3">${BKEYS.map(b=>{ const tot=sum(D.per[b]); return `<div class="sheet stack chart"><div class="row" style="justify-content:space-between"><h3 class="${BEH[b].cls}" style="color:var(${BEH[b].varc})">${BEH[b].name}</h3><span class="num small">${tot} مرة</span></div>${barChart(D.per[b],D.days,`var(${BEH[b].varc})`,`${BEH[b].name} في كل يوم`)}</div>`; }).join('')}</div>
+  <div class="grid g3">${D.keys.map(b=>{ const tot=sum(D.per[b]); return `<div class="sheet stack chart"><div class="row" style="justify-content:space-between"><h3 class="${BEH[b].cls}" style="color:var(${BEH[b].varc})">${BEH[b].name}</h3><span class="small"><span class="num">${tot}</span> ${BEH[b].unit}</span></div>${barChart(D.per[b],D.days,`var(${BEH[b].varc})`,`${BEH[b].name} في كل يوم`)}</div>`; }).join('')}</div>
   <div class="sheet flush"><div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>المعدل بالساعة</th><th>أعلى يوم</th></tr></thead><tbody>
-  ${BKEYS.map(b=>{ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); const p=D.co.per[b]; return `<tr><td><span class="chip ${BEH[b].cls}">${BEH[b].name}</span></td><td class="num">${p.solo}</td><td class="num">${p.sync}</td><td class="num">${tot}</td><td class="num">${hrs? (tot/hrs).toFixed(1) : '—'}</td><td class="num">${mx? D.days[di]+' ('+mx+')' : '—'}</td></tr>`; }).join('')}
+  ${D.keys.map(b=>{ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); const p=D.co.per[b]; return `<tr><td><span class="chip ${BEH[b].cls}">${BEH[b].name}</span><div class="small muted">${BEH[b].unit}${BEH[b].episodic? ` · المدة الكلية ${fmtDur(D.dur[b])}`:''}</div></td><td class="num">${p.solo}</td><td class="num">${p.sync}</td><td class="num">${tot}</td><td class="num">${hrs? (tot/hrs).toFixed(1) : '—'}</td><td class="num">${mx? D.days[di]+' ('+mx+')' : '—'}</td></tr>`; }).join('')}
   <tr><td><span class="pill p-sync">أفعال متزامنة</span></td><td class="small" colspan="2">${syncLine(D.co)}</td><td class="num">${D.co.episodes.length}</td><td class="num">${hrs? (D.co.episodes.length/hrs).toFixed(1) : '—'}</td><td></td></tr>
   <tr><td class="muted small">غير قابل للتحديد</td><td class="num" colspan="5">${fmtDur(D.undet)} من زمن الملاحظة</td></tr>
   </tbody></table></div></div>
@@ -1250,15 +1591,15 @@ async function genReport(){
   if(!sample){ out.value=localDraft(); msg.textContent='مسودة مبنية من الأرقام والسياقات المعتمدة فقط. راجعيها وأكمليها بتفسير الأخصائية.'; return; }
   const D=weekData();
   const data={ file_number:fmtFile(S.child.fileNo), participant:S.child.code||'—', week_start:D.start, sessions:D.ses.length, observed_hours:+D.hours.toFixed(2), unclear_minutes:+(D.undet/60).toFixed(1),
-    totals:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, sum(D.per[b])])), solo_vs_simultaneous:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, {منفرد:D.co.per[b].solo, متزامن:D.co.per[b].sync}])), simultaneous_actions:{count:D.co.episodes.length, by_combination:D.co.combos}, daily:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, Object.fromEntries(D.days.map((d,i)=>[d,D.per[b][i]]))])),
-    rate_per_hour:Object.fromEntries(BKEYS.map(b=>[BEH[b].name, D.hours? +(sum(D.per[b])/D.hours).toFixed(2) : null])), contexts:D.ctx };
+    units:Object.fromEntries(D.keys.map(b=>[BEH[b].name, BEH[b].unit])), totals:Object.fromEntries(D.keys.map(b=>[BEH[b].name, sum(D.per[b])])), episode_duration_seconds:Object.fromEntries(D.keys.filter(b=>BEH[b].episodic).map(b=>[BEH[b].name, +D.dur[b].toFixed(1)])), solo_vs_simultaneous:Object.fromEntries(D.keys.map(b=>[BEH[b].name, {منفرد:D.co.per[b].solo, متزامن:D.co.per[b].sync}])), simultaneous_actions:{count:D.co.episodes.length, by_combination:D.co.combos}, daily:Object.fromEntries(D.keys.map(b=>[BEH[b].name, Object.fromEntries(D.days.map((d,i)=>[d,D.per[b][i]]))])),
+    rate_per_hour:Object.fromEntries(D.keys.map(b=>[BEH[b].name, D.hours? +(sum(D.per[b])/D.hours).toFixed(2) : null])), contexts:D.ctx };
   const sources=S.sources.map((s,i)=>`[م${i+1}] ${s.title}\n${s.text}`).join('\n\n');
   const prompt=`أنت مساعد صياغة تقارير لأخصائي تحليل سلوك تطبيقي معتمد (BCBA). اكتب مسودة تقرير أسبوعي بالعربية الفصحى الواضحة.
 
 القواعد الملزمة:
 1. استخدم الأرقام الواردة في البيانات فقط، ولا تخترع أرقامًا.
 2. أي تفسير أو معلومة مهنية يجب أن تأتي من المصادر المرفقة، مع الإشارة إلى المصدر مثل [م1]. إن لم تكفِ المصادر فقل ذلك صراحة.
-3. لا تنسب سببًا لأي سلوك. صف السياق بصيغة "بعد" أو "قبل" فقط، واذكر الاحتمالات دون جزم.
+3. لا تنسب سببًا لأي سلوك. صف السياق بصيغة "بعد" أو "قبل" فقط، واذكر الاحتمالات دون جزم. هذه أوصاف لحركات فقط ولا تعني تشخيصًا.
 4. لا تشخيص ولا توصيات علاجية جديدة. اربط النتائج بأهداف الأخصائي المكتوبة فقط.
 5. اذكر الفترات غير القابلة للتحديد كقيد على القياس.
 6. البنية: ملخص في فقرة، ثم النتائج لكل سلوك، ثم السياقات الملاحظة، ثم القيود. بلا عناوين Markdown؛ عناوين قصيرة كسطر عادي.
@@ -1287,8 +1628,8 @@ function localDraft(){
   L.push(`عدد جلسات الرصد ${D.ses.length}، وزمن الملاحظة ${fmtDur(D.hours*3600)}. الأرقام التالية من الأحداث التي اعتمدها الأخصائي${S.includePending?' مع الأحداث المقترحة غير المعتمدة':''}.`);
   L.push('');
   L.push('النتائج');
-  for(const b of BKEYS){ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx);
-    L.push(`- ${BEH[b].name}: ${tot} مرة (منفرد ${D.co.per[b].solo}، متزامن ${D.co.per[b].sync})${D.hours? `، بمعدل ${(tot/D.hours).toFixed(1)} مرة في الساعة`:''}${mx? `، وأعلى يوم ${D.days[di]} (${mx} مرة)`:''}.`); }
+  for(const b of D.keys){ const tot=sum(D.per[b]); const mx=Math.max(...D.per[b]); const di=D.per[b].indexOf(mx); const u=BEH[b].unit;
+    L.push(`- ${BEH[b].name}: ${tot} (${u}) (منفرد ${D.co.per[b].solo}، متزامن ${D.co.per[b].sync})${BEH[b].episodic? `، المدة الكلية ${fmtDur(D.dur[b])}`:''}${D.hours? `، بمعدل ${(tot/D.hours).toFixed(1)} في الساعة`:''}${mx? `، وأعلى يوم ${D.days[di]} (${mx})`:''}.`); }
   L.push(`- أفعال متزامنة (خانة مستقلة): ${D.co.episodes.length}${D.co.episodes.length? ' — '+syncLine(D.co):''}.`);
   L.push('');
   L.push('السياقات الملاحظة (ما حدث قبل السلوك، دون جزم بالسبب)');
@@ -1301,6 +1642,7 @@ function localDraft(){
   L.push('قيود القياس');
   L.push(`- فترات غير قابلة للتحديد (حركة محجوبة أو خارج الإطار): ${fmtDur(D.undet)}.`);
   L.push('- الرصد آلي من نقاط الجسم ويخضع لمراجعة الأخصائي.');
+  L.push('- هذه أوصاف لحركات فقط، ولا تعني بحد ذاتها تشخيصًا أو أن الحركة تحتاج تدخلًا.');
   L.push('');
   L.push('مسودة للمراجعة؛ القرار النهائي للأخصائي.');
   return L.join('\n');
@@ -1346,11 +1688,11 @@ function vMethod(){
     <h2>عنوان التجربة</h2>
     <p><b>${EXP}</b></p>
     <h2>1. التصميم</h2>
-    <p>دراسة تطوير وتقييم لنموذج أولي: يقارَن رصد النظام الآلي بملاحظة بشرية مستقلة من أخصائية BCBA على الفيديوهات نفسها. المتغير المقيس هو صدق القياس الآلي لثلاث سلوكيات معرّفة تشغيليًا.</p>
+    <p>دراسة تطوير وتقييم لنموذج أولي: يقارَن رصد النظام الآلي بملاحظة بشرية مستقلة من أخصائية BCBA على الفيديوهات نفسها. المتغير المقيس هو صدق القياس الآلي لسلوكيات حركية معرّفة تشغيليًا: رفع اليد، والتصفيق، والقيام من الكرسي، ورفرفة اليدين، والتأرجح بالجسم، والقفز المتكرر، والدوران حول النفس، ومغادرة الكرسي، والمشي على أطراف الأصابع. تختار الأخصائية في كل جلسة السلوكيات المستهدفة.</p>
     <h2>2. التعريفات التشغيلية</h2>
     <p>لكل سلوك تعريف قابل للملاحظة والقياس، بلحظة بداية ونهاية وقاعدة عدّ صريحة، صاغته الأخصائية المشرفة. يطبّق النظام كل تعريف كقاعدة على نقاط الجسم، وتظهر القاعدتان جنبًا إلى جنب في صفحة السلوكيات.</p>
     <h2>3. أبعاد القياس</h2>
-    <ul><li>التكرار: عدد مرات حدوث السلوك في الجلسة.</li><li>المعدل: التكرار مقسومًا على زمن الملاحظة (مرة/ساعة)، ليمكن مقارنة جلسات مختلفة الطول.</li><li>المدة: خارج نطاق المرحلة الأولى بطلب الأخصائية حتى يبقى الاختبار محددًا، وتُضاف لاحقًا عند الحاجة.</li></ul>
+    <ul><li>التكرار: عدد مرات حدوث السلوك في الجلسة.</li><li>المعدل: التكرار مقسومًا على زمن الملاحظة (مرة/ساعة)، ليمكن مقارنة جلسات مختلفة الطول.</li><li>النوبة ومدتها: لرفرفة اليدين والتأرجح بالجسم تُعدّ النوبات (لا كل حركة صغيرة) وتُقاس مدتها، وتُقارن المدة الكلية باتفاق المدة الكلية (Total duration IOA). وللقفز تُعدّ القفزات والسلاسل، وللدوران الدورات الكاملة، وللمشي على أطراف الأصابع الخطوات والنوبات.</li><li>شرط الدورتين وفاصل الثانيتين قواعد مقترحة لتنظيم القياس، وليست معايير تشخيصية، وتُستخدم النسخة نفسها في التسجيل البشري والنظام.</li></ul>
     <h2>4. المرجع البشري</h2>
     <p>تعدّ الأخصائية السلوكيات في الفيديو نفسه دون الاطلاع على نتيجة النظام (ملاحظة معماة)، وتسجّل أوقات الحدوث.</p>
     <h2>5. مؤشرات الاتفاق والدقة</h2>
@@ -1358,6 +1700,8 @@ function vMethod(){
     <div class="formula">IOA = (smaller count ÷ larger count) × 100</div>
     <p>اتفاق العدّ لكل فترة (Exact count-per-interval IOA) بفترات ${INTERVAL} ثوانٍ:</p>
     <div class="formula">IOA = (intervals with identical counts ÷ total intervals) × 100</div>
+    <p>اتفاق المدة الكلية (Total duration IOA) للسلوكيات المقيسة بالنوبات:</p>
+    <div class="formula">IOA = (shorter total duration ÷ longer total duration) × 100</div>
     <p>يُعدّ الاتفاق مقبولًا عند ${IOA_OK}% فأكثر، وهو الحد الشائع في أبحاث تحليل السلوك التطبيقي، ويُفضَّل ${IOA_GOOD}% فأكثر.</p>
     <p>ولأن النظام مصنِّف آلي، تُحسب أيضًا مقاييس تعلّم الآلة بمطابقة كل حدث بشري بحدث آلي ضمن ±${TOL} ثانية:</p>
     <div class="formula">Precision = TP ÷ (TP + FP)   Recall = TP ÷ (TP + FN)   F1 = 2PR ÷ (P + R)</div>
@@ -1372,7 +1716,7 @@ function vMethod(){
     <h2>8. الأخلاقيات</h2>
     <p>موافقة مستنيرة مكتوبة من ولي الأمر، وقبول الطفل بحسب قدرته مع التوقف عند الانزعاج، وإشراف أخصائية معتمدة، والالتزام بمدونة أخلاقيات مجلس اعتماد محللي السلوك (BACB). التجارب الأولى على متطوعين بالغين يؤدون الحركات.</p>
     <h2>9. حدود النموذج الأولي</h2>
-    <ul><li>دون علامة لونية يفترض النظام طفلًا واحدًا في الصورة؛ ومع العلامة قد يُفقد التتبع إذا تشابه لون العلامة مع ملابس الآخرين أو خلفية الغرفة.</li><li>التصفيق السريع قد يفوت عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>رصد «سلوك جديد» غير معرّف مسبقًا خارج نطاق هذا النموذج.</li></ul>
+    <ul><li>دون علامة لونية يفترض النظام طفلًا واحدًا في الصورة؛ ومع العلامة قد يُفقد التتبع إذا تشابه لون العلامة مع ملابس الآخرين أو خلفية الغرفة.</li><li>التصفيق السريع ورفرفة اليدين قد يفوتان عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>المشي على أطراف الأصابع يحتاج تصويرًا من الجانب يُظهر الكعبين والأرض؛ ومن الأمام تُسجَّل الفترة «غير قابلة للتحديد».</li><li>الدوران حول النفس يعتمد على تقدير عمق الكتفين من كاميرا واحدة، وهو تقدير تقريبي يحتاج اختبارًا على مقاطع حقيقية.</li><li>التلويح يشبه الرفرفة في شكله الحركي ولا يُفرَّق من الحركة وحدها؛ يُسجَّل للمراجعة دون افتراض الغرض.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>«الحركة خارج الفئات المحددة» تُعرض للاطلاع فقط (حركة واضحة للأطراف ثانية فأكثر لم تطابق أي تعريف)، ولا يصنّفها النظام ولا يعدّها.</li></ul>
     <h2>المراجع</h2>
     <ol class="refs">
       <li>Cooper, J. O., Heron, T. E., & Heward, W. L. (2020). <i>Applied Behavior Analysis</i> (3rd ed.). Pearson.</li>
