@@ -298,6 +298,11 @@ const NOSYNC = new Set(['stand|leave','leave|stand']); // successive phases of o
 const sesKeys = s => (s && Array.isArray(s.targets) && s.targets.length)? BKEYS.filter(b=>s.targets.includes(b)) : OLD3;
 const keysFor = list => { const set=new Set(); (list||[]).forEach(s=>sesKeys(s).forEach(b=>set.add(b))); return BKEYS.filter(b=>set.has(b)); };
 const childTargets = () => (S.child && Array.isArray(S.child.targets) && S.child.targets.length)? BKEYS.filter(b=>S.child.targets.includes(b)) : BKEYS.slice();
+const DEF_VERSION = '1.1';
+const DEF_LOG = [
+  ['1.0','أكتوبر 2026','تعريفات رفع اليد والتصفيق والقيام من الكرسي؛ القياس بعدّ المرات فقط.'],
+  ['1.1','26 أكتوبر 2026','إضافة رفرفة اليدين والتأرجح بالجسم (نوبات ومدتها)، والقفز المتكرر (قفزات وسلاسل)، والدوران حول النفس (دورات كاملة)، ومغادرة الكرسي، والمشي على أطراف الأصابع (خطوات)؛ والفصل بين «غير قابل للتحديد» و«خارج الفئات».'],
+];
 const zeroCounts = () => Object.fromEntries(BKEYS.map(b=>[b,0]));
 const EXP = 'دقة نظام الرؤية الحاسوبية في رصد السلوكيات الحركية';
 const CONSENT = `نموذج موافقة ولي الأمر على مشاركة طفل في تجربة بحثية
@@ -675,6 +680,10 @@ afterRender.child = ()=>{
 function vBehaviors(){
   return `
   ${headBlock('التعريفات التشغيلية','السلوكيات المستهدفة','تعريفات الأخصائية كما وصلت، وبجانب كل تعريف القاعدة التي يطبّقها النظام على نقاط الجسم. تختار الأخصائية في كل جلسة السلوكيات التي تريد رصدها ومقارنتها.')}
+  <div class="sheet stack" style="gap:8px"><h3>مصدر التعريفات ونسخها</h3>
+    <p class="small">هذه تعريفات إجرائية مقترحة وُضعت خصيصًا لأغراض هذا النموذج التجريبي، بمراجعة استشارية من أخصائية تحليل سلوك، وليست منقولة من دراسة منشورة؛ فلا تُنسب لمرجع لم تُؤخذ منه. أسس بناء التعريف الإجرائي (قابلية الملاحظة والقياس، ووضوح البداية والنهاية، والأمثلة وغير الأمثلة) مأخوذة من وحدة <a href="https://iris.peabody.vanderbilt.edu/case-study/defining-behavior/" target="_blank" rel="noopener">Defining Behavior</a> في مركز IRIS بجامعة فاندربلت. ووجود مصدر عام لا يثبت دقة النظام ولا يدعم كل قاعدة برمجية.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>النسخة</th><th>التاريخ</th><th>التغيير</th></tr></thead><tbody>${DEF_LOG.map(r=>`<tr><td class="num">${r[0]}</td><td class="small">${r[1]}</td><td class="small" style="white-space:normal">${r[2]}</td></tr>`).join('')}</tbody></table></div>
+    <p class="small muted">النسخة الحالية: <b class="num">${DEF_VERSION}</b>. تُحفظ النسخة مع كل جلسة، فيُعرف بأي نسخة من التعريفات حُسبت نتائجها.</p></div>
   <div class="notice">شرط الدورتين وفاصل الثانيتين قواعد مقترحة لتنظيم القياس في النموذج، وليست معايير تشخيصية؛ تُراجع بالتجربة، ثم تُستخدم النسخة نفسها في التسجيل البشري والنظام. وهذه أوصاف لحركات فقط، ولا تعني بحد ذاتها وجود توحّد أو أن الحركة تحتاج تدخلًا.</div>
   <div class="grid g3">
   ${BKEYS.map(b=>{ const x=BEH[b]; return `<article class="sheet beh-card ${x.cls}"><div class="inner">
@@ -1321,12 +1330,12 @@ async function saveRun(){
   if(!run) return; const btn=$('#s_save'); btn.disabled=true;
   const id=uid();
   const mkInfo = run.mk && run.mk.used? {used:true, color:S.child.marker, frames:run.mk.frames, ok:run.mk.ok||0, missing:run.mk.missing||0, mismatch:(run.mk.mismatch||0)+(run.mk.nopose||0)} : null;
-  const ses={ id, childId:S.childId, marker:mkInfo, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), targets:run.targets, clapTimes:run.targets.includes('clap')? run.det.clapTimes.map(x=>+x.toFixed(2)) : [], spec:{} };
+  const ses={ id, childId:S.childId, marker:mkInfo, label:$('#s_label').value.trim()||'جلسة رصد', date:$('#s_date').value||today(), duration:+run.duration.toFixed(2), source:run.source, fps:run.fps, createdAt:Date.now(), defVersion:DEF_VERSION, targets:run.targets, clapTimes:run.targets.includes('clap')? run.det.clapTimes.map(x=>+x.toFixed(2)) : [], spec:{} };
   try{
     await Store.set('sessions', id, ses);
     for(const e of run.events){
       const eid=uid();
-      await Store.set('events', eid, { sessionId:id, behavior:e.behavior, kind:e.kind, start:+e.start.toFixed(2), end:+e.end.toFixed(2), count:e.count||0, times:e.times||[], detail:e.detail||'', key:e.key||[], status: e.kind==='event'?'pending': e.kind==='other'?'other':'undet', context:'', note:'' });
+      await Store.set('events', eid, { sessionId:id, behavior:e.behavior, kind:e.kind, start:+e.start.toFixed(2), end:+e.end.toFixed(2), count:e.count||0, times:e.times||[], detail:e.detail||'', key:e.key||[], orig:{count:e.count||0, times:e.times||[], start:+e.start.toFixed(2), end:+e.end.toFixed(2)}, status: e.kind==='event'?'pending': e.kind==='other'?'other':'undet', context:'', note:'' });
     }
   }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); btn.disabled=false; return; }
   run=null; await loadAll(); toast('حُفظت الجلسة في ملف '+fmtFile(S.child.fileNo)+'. الأحداث بانتظار المراجعة');
@@ -1366,7 +1375,7 @@ function vReview(){
     <td data-l="السلوك"><span class="chip ${BEH[e.behavior].cls}">${BEH[e.behavior].name}</span></td>
     <td data-l="الوقت"><span class="num">${fmtT(e.start)} – ${fmtT(e.end)}</span></td>
     <td data-l="التفاصيل" class="small">${e.kind==='undet'?'الحركة محجوبة أو خارج الإطار':esc(e.detail)}${e.kind==='event'?syncTag(e):''}</td>
-    <td data-l="العدد">${e.kind==='event'? (MULTI.has(e.behavior)? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="العدد (${BEH[e.behavior].unit})">` : `<span class="num">1</span>${BEH[e.behavior].episodic? ` <span class="small muted">${BEH[e.behavior].unit}</span>`:''}`) : '—'}</td>
+    <td data-l="العدد">${e.kind==='event'? (MULTI.has(e.behavior)? `<input type="number" min="0" class="num" style="width:64px" data-count value="${e.count||1}" aria-label="العدد (${BEH[e.behavior].unit})">${e.orig && e.orig.count!==e.count? `<div class="small muted">الأصلي: <span class="num">${e.orig.count}</span></div>` : ''}` : `<span class="num">1</span>${BEH[e.behavior].episodic? ` <span class="small muted">${BEH[e.behavior].unit}</span>`:''}`) : '—'}</td>
     <td data-l="ما حدث قبله (السياق)">${e.kind==='event'?`<input type="text" class="ctx" data-ctx value="${esc(e.context)}" placeholder="بعد…" aria-label="السياق">`:''}</td>
     <td data-l="الحالة">${statusPill(e.status)}</td>
     <td data-l="القرار">${e.kind==='event'?`<div class="row" style="gap:4px;flex-wrap:nowrap"><button class="btn sm" data-act="approved">اعتماد</button><button class="btn sm ghost danger" data-act="rejected">رفض</button></div>`:''}</td>
@@ -1399,18 +1408,21 @@ async function saveEvent(id,patch){
 }
 
 /* IOA */
+/* Event matching: reference events are taken in time order; each is paired with the nearest system event not yet paired,
+   if it lies within ±TOL s. Paired = agreement; unpaired system events = added (FP); unpaired reference events = missed (FN). */
 function matchTimes(sys, spec){
-  const used=new Array(sys.length).fill(false); let tp=0;
-  for(const t of spec){ let best=-1, bd=1e9; sys.forEach((s,i)=>{ if(!used[i]){ const d=Math.abs(s-t); if(d<=TOL && d<bd){ bd=d; best=i; } } }); if(best>=0){ used[best]=true; tp++; } }
-  return {tp, fp: sys.length-tp, fn: spec.length-tp};
+  const used=new Array(sys.length).fill(false); let tp=0; const offs=[];
+  for(const t of [...spec].sort((a,b)=>a-b)){ let best=-1, bd=1e9; sys.forEach((s,i)=>{ if(!used[i]){ const d=Math.abs(s-t); if(d<=TOL && d<bd){ bd=d; best=i; } } }); if(best>=0){ used[best]=true; tp++; offs.push(bd); } }
+  return {tp, fp: sys.length-tp, fn: spec.length-tp, meanOff: offs.length? sum(offs)/offs.length : null};
 }
 function sessionIOA(s){
   const res={}; let num=0, den=0;
   const keys=sesKeys(s); res.keys=keys;
   for(const b of keys){
-    const evs=evOf(s.id,b).filter(e=>e.kind==='event');
+    // original system output, before any approval / rejection / count correction in the review page
+    const evs=evOf(s.id,b).filter(e=>e.kind==='event').map(e=>e.orig? {...e, ...e.orig} : e);
     const sysCount=sum(evs.map(e=>MULTI.has(b)? (e.times?.length||e.count||1) : 1));
-    const sysTimes = b==='clap' && s.clapTimes && s.clapTimes.length? s.clapTimes : MULTI.has(b)? evs.flatMap(e=>(e.times&&e.times.length)? e.times : [e.start]).sort((x,y)=>x-y) : evs.map(e=>e.start);
+    const sysTimes = b==='clap' && s.clapTimes && s.clapTimes.length? s.clapTimes : MULTI.has(b)? evs.flatMap(e=>(e.times&&e.times.length)? e.times : [e.start]).sort((x,y)=>x-y) : evs.map(e=>e.start).sort((x,y)=>x-y);
     const sp=(s.spec||{})[b]; const r={sysCount, sysTimes};
     if(BEH[b].episodic){ r.sysDur=sum(evs.map(e=>Math.max(0,e.end-e.start))); if(sp && sp.dur!=null && String(sp.dur).trim()!==''){ r.specDur=+sp.dur; const mx=Math.max(r.specDur,r.sysDur), mn=Math.min(r.specDur,r.sysDur); r.durIoa = mx===0? 100 : mn/mx*100; } }
     if(sp && sp.count!=null && sp.count!==''){
@@ -1419,6 +1431,7 @@ function sessionIOA(s){
       const st=parseTimes(sp.times);
       if(st.length || (sp.times||'').trim()!==''){
         r.specTimes=st; const m=matchTimes(sysTimes, st); Object.assign(r,m);
+        r.eventAgree = (m.tp+m.fp+m.fn)? m.tp/(m.tp+m.fp+m.fn)*100 : 100;
         r.precision = (m.tp+m.fp)? m.tp/(m.tp+m.fp)*100 : null; r.recall=(m.tp+m.fn)? m.tp/(m.tp+m.fn)*100 : null;
         r.f1 = (r.precision!=null&&r.recall!=null&&(r.precision+r.recall))? 2*r.precision*r.recall/(r.precision+r.recall) : null;
         const n=Math.max(1,Math.ceil((s.duration||1)/INTERVAL)); let agree=0;
@@ -1433,40 +1446,55 @@ function sessionIOA(s){
 }
 function verdict(v){ if(v==null) return ''; return v>=IOA_GOOD? `<span class="verdict" style="color:var(--good)">فوق العتبة الأولية (≥ ${IOA_GOOD}%)</span>` : v>=IOA_OK? `<span class="verdict" style="color:var(--good)">يبلغ العتبة الأولية (≥ ${IOA_OK}%)</span>` : `<span class="verdict" style="color:var(--bad)">دون العتبة الأولية — راجعي التعريف أو زاوية الكاميرا</span>`; }
 function gauge(v,label,color){ return `<div class="gauge"><div class="row" style="justify-content:space-between"><span class="small">${label}</span><span class="num" style="font-weight:600">${pct(v)}</span></div><div class="bar"><i style="width:${v==null?0:Math.min(100,v)}%;background:${color}"></i><b title="حد القبول 80%"></b></div></div>`; }
+const specSaved = s => !!(s && (s.specSavedAt || (s.spec && Object.values(s.spec).some(x=>x && x.count!=null && x.count!==''))));
 function vIoa(){
-  if(!S.sessions.length) return headBlock('الاتفاق والدقة','مقارنة النظام بالأخصائية','لا توجد جلسات بعد. سجّلي جلسة أولًا.');
+  if(!S.sessions.length) return headBlock('الاتفاق والدقة','مقارنة النظام بالتسجيل المرجعي','لا توجد جلسات بعد. سجّلي جلسة أولًا.');
   const s=sessionById(S.ioaSession)||S.sessions[0]; S.ioaSession=s.id; const R=sessionIOA(s);
+  const shown = specSaved(s) && !S.ioaEdit;
+  const lock = shown? 'readonly' : '';
   return `
-  ${headBlock('الاتفاق والدقة','مقارنة النظام بالأخصائية','تشاهد الأخصائية نفس الفيديو دون رؤية نتيجة النظام، وتسجّل عدد المرات وأوقاتها. يُحسب الاتفاق مع التسجيل المرجعي للأخصائية (لا IOA بين ملاحِظين بشريين مستقلين) ودقة الرصد. عتبة التقييم الأولية التي حددها المشروع: 80%، وليست معيارًا يثبت صلاحية النظام سريريًا.')}
+  ${headBlock('الاتفاق والدقة','مقارنة النظام بالتسجيل المرجعي للأخصائية','تشاهد الأخصائية الفيديو نفسه وتسجّل عدد كل حركة وأوقاتها، ونتيجة النظام مخفية في هذه الصفحة حتى يُحفظ تسجيلها المستقل. بعد الحفظ تظهر المقارنة: '+'الاتفاق مع التسجيل المرجعي للأخصائية'+' (لا IOA بين ملاحِظين بشريين مستقلين). عتبة التقييم الأولية التي حددها المشروع: 80%، وليست معيارًا يثبت صلاحية النظام سريريًا.')}
   <div class="sheet row"><label class="f" style="flex:1 1 260px">الجلسة<select id="i_s">${S.sessions.map(x=>`<option value="${x.id}" ${x.id===s.id?'selected':''}>${esc(x.date)} · ${esc(x.label)}</option>`).join('')}</select></label>
-  <div class="stack" style="flex:1 1 220px;gap:4px"><span class="small muted">الاتفاق الكلي (كل السلوكيات)</span><span class="num" style="font-family:var(--display);font-size:1.6rem;font-weight:700">${pct(R.overall)}</span>${verdict(R.overall)}</div></div>
+  ${shown? `<div class="stack" style="flex:1 1 220px;gap:4px"><span class="small muted">اتفاق العدّ الكلي (كل السلوكيات)</span><span class="num" style="font-family:var(--display);font-size:1.6rem;font-weight:700">${pct(R.overall)}</span>${verdict(R.overall)}</div>` : `<div class="notice" style="flex:1 1 300px">التسجيل المرجعي لم يُحفظ بعد: نتيجة النظام مخفية. سجّلي من الفيديو قبل فتح «مراجعة الأحداث» أو لوحة الطفل، لأنهما تعرضان مخرجات النظام.</div>`}</div>
+  <details class="sheet stack"><summary style="cursor:pointer;font-weight:600">كيف تُحسب المقارنة؟</summary>
+    <ul class="small">
+      <li><b>المطابقة:</b> تُرتَّب أحداث التسجيل المرجعي زمنيًا، ويُقرن كل حدث بأقرب حدث للنظام لم يُقرن بعد إذا كان الفرق ${TOL} ثانية أو أقل. الحدث المقترن = <b>صحيح</b>؛ حدث النظام الذي لم يُقرن = <b>زائد</b> (أضافه النظام)؛ حدث الأخصائية الذي لم يُقرن = <b>فائت</b> (فوّته النظام).</li>
+      <li><b>اتفاق الأحداث</b> = صحيح ÷ (صحيح + زائد + فائت) × 100. هذا المؤشر الأساسي، لأن العدد الكلي قد يتساوى مع اختلاف الأحداث نفسها.</li>
+      <li><b>اتفاق العدّ الكلي</b> = العدد الأصغر ÷ العدد الأكبر × 100، ويُعرض مكمّلًا فقط.</li>
+      <li><b>اتفاق الفترات</b>: تُقسم الجلسة فترات ${INTERVAL} ثوانٍ، وتُحسب نسبة الفترات المتطابقة في العدد. <b>اتفاق المدة الكلية</b> للرفرفة والتأرجح = المدة الأقصر ÷ الأطول × 100.</li>
+      <li><b>الدقة</b> = صحيح ÷ (صحيح + زائد)، <b>الاستدعاء</b> = صحيح ÷ (صحيح + فائت)، ويُعرض متوسط فرق التوقيت للأحداث المقترنة.</li>
+      <li>تُقارن <b>مخرجات النظام الأصلية</b> كما رصدها؛ اعتماد الأحداث أو رفضها أو تصحيح عددها في صفحة المراجعة منفصل ولا يغيّر المقارنة، ويُحفظ العدد الأصلي بجانب المصحَّح.</li>
+      <li>العتبة 80% عتبة تقييم أولية لكل حركة في كل مقطع على اتفاق الأحداث، مستلهمة من الحد الأدنى الشائع لاتفاق الملاحِظين في أدبيات تحليل السلوك (Cooper, Heron & Heward, 2020)، وليست اعتمادًا لدقة النظام أو صلاحيته السريرية.</li>
+    </ul></details>
   <form id="ioaForm" class="grid g3">
   ${R.keys.map(b=>{ const r=R[b], sp=(s.spec||{})[b]||{}; return `<div class="sheet beh-card ${BEH[b].cls}"><div class="inner">
     <h3>${BEH[b].name}</h3>
-    <div class="row" style="justify-content:space-between"><span class="small muted">عدّ النظام (قبل المراجعة)</span><span class="num" style="font-weight:600">${r.sysCount} ${BEH[b].unit}</span></div>
+    <label class="f">عدّ الأخصائية (${BEH[b].unit})<input type="number" min="0" id="sc_${b}" value="${esc(sp.count??'')}" class="num" ${lock} required></label>
+    <label class="f">أوقات الأخصائية لكل ${BEH[b].unit} (مطلوبة، مثل 0:12, 1:03.5)<input type="text" id="st_${b}" value="${esc(sp.times??'')}" class="num" style="text-align:left" ${lock}></label>
+    ${BEH[b].episodic? `<label class="f">مجموع مدة النوبات (ثوانٍ، اختياري)<input type="number" min="0" step="0.1" id="sd_${b}" value="${esc(sp.dur??'')}" class="num" ${lock}></label>` : ''}
+    ${shown? `<hr>
+    <div class="row" style="justify-content:space-between"><span class="small muted">عدّ النظام الأصلي</span><span class="num" style="font-weight:600">${r.sysCount} ${BEH[b].unit}</span></div>
     ${BEH[b].episodic? `<div class="row" style="justify-content:space-between"><span class="small muted">مجموع المدة عند النظام</span><span class="num" style="font-weight:600">${r.sysDur.toFixed(1)} ث</span></div>` : ''}
-    <label class="f">عدّ الأخصائية (${BEH[b].unit})<input type="number" min="0" id="sc_${b}" value="${esc(sp.count??'')}" class="num"></label>
-    ${BEH[b].episodic? `<label class="f">مجموع مدة النوبات عند الأخصائية (ثوانٍ، اختياري)<input type="number" min="0" step="0.1" id="sd_${b}" value="${esc(sp.dur??'')}" class="num"></label>` : ''}
-    <label class="f">أوقات الأخصائية (اختياري، مثل 0:12, 1:03.5)<input type="text" id="st_${b}" value="${esc(sp.times??'')}" class="num" style="text-align:left"></label>
-    <hr>
-    ${gauge(r.total,'اتفاق العدّ الكلي', `var(${BEH[b].varc})`)}
+    ${r.eventAgree!=null? gauge(r.eventAgree,'اتفاق الأحداث (الأساسي)', `var(${BEH[b].varc})`) : '<p class="small" style="color:var(--bad)">لم تُدخل الأوقات: لا يمكن مطابقة الأحداث.</p>'}
+    ${gauge(r.total,'اتفاق العدّ الكلي (مكمّل)', `var(${BEH[b].varc})`)}
     ${r.durIoa!=null? gauge(r.durIoa,'اتفاق المدة الكلية', `var(${BEH[b].varc})`) : ''}
     ${r.interval!=null? gauge(r.interval,`اتفاق الفترات (${INTERVAL} ث × ${r.intervals})`, `var(${BEH[b].varc})`) : ''}
-    ${r.f1!=null? `<table><tbody><tr><td class="small">صحيح / زائد / فائت</td><td class="num">${r.tp} / ${r.fp} / ${r.fn}</td></tr><tr><td class="small">الدقة (Precision)</td><td class="num">${pct(r.precision)}</td></tr><tr><td class="small">الاستدعاء (Recall)</td><td class="num">${pct(r.recall)}</td></tr><tr><td class="small">F1</td><td class="num">${pct(r.f1)}</td></tr></tbody></table><p class="small muted">التطابق ضمن ±${TOL} ثانية.</p>` : `<p class="small muted">أدخلي الأوقات لحساب الدقة والاستدعاء.</p>`}
+    ${r.f1!=null? `<table><tbody><tr><td class="small">صحيح / زائد / فائت</td><td class="num">${r.tp} / ${r.fp} / ${r.fn}</td></tr><tr><td class="small">الدقة (Precision)</td><td class="num">${pct(r.precision)}</td></tr><tr><td class="small">الاستدعاء (Recall)</td><td class="num">${pct(r.recall)}</td></tr><tr><td class="small">متوسط فرق التوقيت</td><td class="num">${r.meanOff==null?'—':r.meanOff.toFixed(2)+' ث'}</td></tr></tbody></table>` : ''}` : ''}
   </div></div>`; }).join('')}
-  <div class="row" style="grid-column:1/-1"><button class="btn primary" type="submit">حفظ عدّ الأخصائية وحساب الاتفاق</button></div>
+  <div class="row" style="grid-column:1/-1">${shown? `<button class="btn" type="button" id="ioaEdit">تعديل التسجيل المرجعي</button><span class="small muted">حُفظ ${s.specSavedAt? new Date(s.specSavedAt).toLocaleString('ar-SA-u-nu-latn') : ''}${s.specEditedAfterReveal? ' · عُدّل بعد الاطلاع على نتيجة النظام' : ''}</span>` : `<button class="btn primary" type="submit">حفظ التسجيل المرجعي وإظهار المقارنة</button><span class="small" id="ioaMsg" style="color:var(--bad)"></span>`}</div>
   </form>
-  ${behaviorReportHTML(s,R)}`;
+  ${shown? behaviorReportHTML(s,R) : ''}`;
 }
+const origEvs = sid => evOf(sid).map(e=>e.orig? {...e, ...e.orig} : e);   // system output as detected, before review edits
 function behaviorRows(s,R){
-  const co=cooccur(evOf(s.id));
+  const co=cooccur(origEvs(s.id));
   return R.keys.map(b=>{ const r=R[b]; const evs=evOf(s.id,b).filter(e=>e.kind==='event'); const cp=co.per[b];
     const both=evs.filter(e=>/باليدين/.test(e.detail||'')).length;
     const extra = b==='raise'? `باليدين ${both}، بيد واحدة ${evs.length-both}` : b==='clap'? `${evs.length} نوبة تصفيق`
       : b==='flap'? `باليدين ${both}، بيد واحدة ${evs.length-both} · المدة الكلية ${r.sysDur.toFixed(1)} ث`
       : b==='rock'? `${['للجانبين','للأمام والخلف'].map(d=>`${d} ${evs.filter(e=>(e.detail||'').includes(d)).length}`).join('، ')} · المدة الكلية ${r.sysDur.toFixed(1)} ث`
       : b==='jump'? `${evs.length} سلسلة قفز` : b==='toe'? `${evs.length} نوبة` : '';
-    return {b, name:BEH[b].name, unit:BEH[b].unit, solo:cp.solo, sync:cp.sync, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, f1:r.f1, precision:r.precision, recall:r.recall, sysDur:r.sysDur, specDur:r.specDur, durIoa:r.durIoa}; });
+    return {b, name:BEH[b].name, unit:BEH[b].unit, solo:cp.solo, sync:cp.sync, sys:r.sysCount, times:(r.sysTimes||[]).map(fmtT), extra, spec:r.specCount, specTimes:(r.specTimes||[]).map(fmtT), total:r.total, eventAgree:r.eventAgree, tp:r.tp, fp:r.fp, fn:r.fn, f1:r.f1, precision:r.precision, recall:r.recall, sysDur:r.sysDur, specDur:r.specDur, durIoa:r.durIoa}; });
 }
 function behaviorReportText(s,R){
   const rows=behaviorRows(s,R), L=[];
@@ -1475,16 +1503,16 @@ function behaviorReportText(s,R){
   L.push(`الجلسة: ${s.label} · ${s.date} · المدة ${fmtDur(s.duration)} · ${s.source==='camera'?'كاميرا مباشرة':'فيديو مسجّل'}`);
   if(s.marker && s.marker.used) L.push(`تحديد الطفل: بعلامة لونية · الطفل محدَّد في ${s.marker.frames? Math.round(100*s.marker.ok/s.marker.frames):0}% من الإطارات (العلامة غير ظاهرة ${s.marker.missing}، لم يُتأكد ${s.marker.mismatch})`);
   else L.push('تحديد الطفل: بدون علامة (يُفترض طفل واحد في الصورة)');
-  L.push('(مخرجات النظام قبل مراجعة الأخصائي)');
+  L.push(`(مخرجات النظام الأصلية قبل مراجعة الأخصائي · نسخة التعريفات ${s.defVersion||'1.0'})`);
   L.push('');
   for(const r of rows){
     L.push(`${r.name} (${r.unit}): منفرد ${r.solo} · متزامن ${r.sync} · المجموع ${r.sys}${r.extra? ' ('+r.extra+')':''}`);
     if(r.durIoa!=null) L.push(`  المدة: النظام ${r.sysDur.toFixed(1)} ث · الأخصائية ${r.specDur} ث · اتفاق المدة ${pct(r.durIoa)}`);
     L.push(`  أوقات النظام: ${r.times.length? r.times.join('، ') : '—'}`);
-    if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} ${r.unit}${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
+    if(r.spec!=null){ L.push(`  الأخصائية: ${r.spec} ${r.unit}${r.eventAgree!=null? ` · اتفاق الأحداث ${pct(r.eventAgree)} (صحيح ${r.tp}، زائد ${r.fp}، فائت ${r.fn})`:''}${r.specTimes.length? ' · أوقاتها: '+r.specTimes.join('، '):''}`); L.push(`  اتفاق العدّ: ${pct(r.total)}${r.f1!=null? ` · الدقة ${pct(r.precision)} · الاستدعاء ${pct(r.recall)} · F1 ${pct(r.f1)}`:''}`); }
     else L.push('  الأخصائية: لم يُسجَّل عدّها بعد');
   }
-  const co=cooccur(evOf(s.id));
+  const co=cooccur(origEvs(s.id));
   L.push(''); L.push(`الأفعال المتزامنة (خانة مستقلة): ${co.episodes.length}`);
   co.episodes.forEach(x=>L.push(`  ${x.label} · ${fmtT(x.start)}–${fmtT(x.end)}${x.claps? ` · تصفيقات ${x.claps}`:''}`));
   const und=evOf(s.id).filter(e=>e.kind==='undet'), oth=evOf(s.id).filter(e=>e.kind==='other');
@@ -1500,7 +1528,7 @@ function behaviorReportHTML(s,R){
     <div class="tbl-wrap"><table><thead><tr><th>السلوك</th><th>الوحدة</th><th>منفرد</th><th>متزامن</th><th>المجموع</th><th>أوقات النظام</th><th>عدّ الأخصائية (المجموع)</th><th>اتفاق العدّ</th></tr></thead><tbody>
     ${rows.map(r=>`<tr><td><span class="chip ${BEH[r.b].cls}">${r.name}</span>${r.extra?`<div class="small muted">${r.extra}</div>`:''}</td><td class="small">${r.unit}</td><td class="num">${r.solo}</td><td class="num">${r.sync}</td><td class="num">${r.sys}</td><td class="num small" style="white-space:normal;max-width:300px">${r.times.join('، ')||'—'}</td><td class="num">${r.spec??'—'}</td><td class="num">${pct(r.total)}</td></tr>`).join('')}
     </tbody></table></div>
-    ${(()=>{ const co=cooccur(evOf(s.id)); return `<div class="stack" style="gap:6px"><h3>الأفعال المتزامنة <span class="pill p-sync num">${co.episodes.length}</span></h3>${co.episodes.length? `<div class="tbl-wrap"><table><thead><tr><th>السلوكان معًا</th><th>الوقت</th><th>التصفيقات داخله</th></tr></thead><tbody>${co.episodes.map(x=>`<tr><td>${x.label}</td><td class="num">${fmtT(x.start)} – ${fmtT(x.end)}</td><td class="num">${x.claps||'—'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small muted">لم يحدث سلوكان في الوقت نفسه في هذه الجلسة.</p>'}</div>`; })()}
+    ${(()=>{ const co=cooccur(origEvs(s.id)); return `<div class="stack" style="gap:6px"><h3>الأفعال المتزامنة <span class="pill p-sync num">${co.episodes.length}</span></h3>${co.episodes.length? `<div class="tbl-wrap"><table><thead><tr><th>السلوكان معًا</th><th>الوقت</th><th>التصفيقات داخله</th></tr></thead><tbody>${co.episodes.map(x=>`<tr><td>${x.label}</td><td class="num">${fmtT(x.start)} – ${fmtT(x.end)}</td><td class="num">${x.claps||'—'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="small muted">لم يحدث سلوكان في الوقت نفسه في هذه الجلسة.</p>'}</div>`; })()}
     <textarea id="br_text" class="out" hidden readonly></textarea>
   </div>`;
 }
@@ -1515,17 +1543,22 @@ async function saveFile(name, data){
 }
 afterRender.ioa = ()=>{
   const sel=$('#i_s'); if(!sel) return;
+  sel.addEventListener('change',()=>{ S.ioaSession=sel.value; S.ioaEdit=false; render(); });
+  const eb=$('#ioaEdit'); if(eb) eb.addEventListener('click', async ()=>{ const s=sessionById(S.ioaSession); S.ioaEdit=true; try{ await Store.update('sessions',s.id,{specEditedAfterReveal:true}); s.specEditedAfterReveal=true; }catch(e){} render(); });
+  $('#ioaForm').addEventListener('submit', async e=>{ e.preventDefault(); const s=sessionById(S.ioaSession); const spec={}; const bad=[];
+    sesKeys(s).forEach(b=>{ const c=$('#sc_'+b).value, t=$('#st_'+b).value.trim(); spec[b]={count:c, times:t}; if($('#sd_'+b)) spec[b].dur=$('#sd_'+b).value;
+      if(c===''){ bad.push(BEH[b].name+': العدد مطلوب'); return; }
+      const n=parseTimes(t).length; if(+c>0 && n!==+c) bad.push(`${BEH[b].name}: أدخلتِ ${n} وقتًا لعدد ${c}`); });
+    if(bad.length){ $('#ioaMsg').textContent='أكملي التسجيل قبل الحفظ — '+bad.join('، '); return; }
+    try{ const at=Date.now(); await Store.update('sessions',s.id,{spec, specSavedAt:at}); s.spec=spec; s.specSavedAt=at; S.ioaEdit=false; toast('حُفظ التسجيل المرجعي وظهرت المقارنة'); render(); }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); } });
+  if(!$('#br_copy')) return;
   $('#br_copy').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); copyText(behaviorReportText(s,sessionIOA(s)), $('#br_text')); });
   $('#br_csv').addEventListener('click', ()=>{ const s=sessionById(S.ioaSession); const rows=behaviorRows(s,sessionIOA(s));
-    const out=[['experiment','file_number','session','date','duration_s','behavior','unit','solo','simultaneous','system_count','system_times','specialist_count','specialist_times','total_count_ioa','precision','recall','f1','system_duration_s','specialist_duration_s','duration_ioa']];
+    const out=[['experiment','file_number','session','date','duration_s','behavior','unit','solo','simultaneous','system_count','system_times','specialist_count','specialist_times','event_agreement','matched','added','missed','total_count_agreement','precision','recall','f1','system_duration_s','specialist_duration_s','duration_ioa']];
     const f1=v=>v==null?'':(+v).toFixed(1);
-    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.unit,r.solo,r.sync,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),f1(r.total),f1(r.precision),f1(r.recall),f1(r.f1),f1(r.sysDur),r.specDur??'',f1(r.durIoa)]));
-    cooccur(evOf(s.id)).episodes.forEach(x=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,'متزامن: '+x.label,'فعل متزامن','','',1,fmtT(x.start)+'-'+fmtT(x.end),'','','','','','','','','']));
+    rows.forEach(r=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,r.name,r.unit,r.solo,r.sync,r.sys,r.times.join(' '),r.spec??'',r.specTimes.join(' '),f1(r.eventAgree),r.tp??'',r.fp??'',r.fn??'',f1(r.total),f1(r.precision),f1(r.recall),f1(r.f1),f1(r.sysDur),r.specDur??'',f1(r.durIoa)]));
+    cooccur(origEvs(s.id)).episodes.forEach(x=>out.push([EXP,fmtFile(S.child.fileNo),s.label,s.date,s.duration,'متزامن: '+x.label,'فعل متزامن','','',1,fmtT(x.start)+'-'+fmtT(x.end),'','','','','','','','','','','','']));
     saveFile(`behavior-report-${fmtFile(S.child.fileNo)}-${s.date}.csv`, '\ufeff'+out.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n')); });
-  sel.addEventListener('change',()=>{ S.ioaSession=sel.value; render(); });
-  $('#ioaForm').addEventListener('submit', async e=>{ e.preventDefault(); const s=sessionById(S.ioaSession); const spec={};
-    sesKeys(s).forEach(b=>{ spec[b]={count:$('#sc_'+b).value, times:$('#st_'+b).value.trim()}; if($('#sd_'+b)) spec[b].dur=$('#sd_'+b).value; });
-    try{ await Store.update('sessions',s.id,{spec}); s.spec=spec; toast('حُسب الاتفاق'); render(); }catch(err){ toast('تعذّر الحفظ: '+(err.message||err.code)); } });
 };
 
 /* REPORT */
@@ -1694,7 +1727,7 @@ function vMethod(){
     <h2>3. أبعاد القياس</h2>
     <ul><li>التكرار: عدد مرات حدوث السلوك في الجلسة.</li><li>المعدل: التكرار مقسومًا على زمن الملاحظة (مرة/ساعة)، ليمكن مقارنة جلسات مختلفة الطول.</li><li>النوبة ومدتها: لرفرفة اليدين والتأرجح بالجسم تُعدّ النوبات (لا كل حركة صغيرة) وتُقاس مدتها، وتُقارن المدة الكلية باتفاق المدة الكلية (Total duration IOA). وللقفز تُعدّ القفزات والسلاسل، وللدوران الدورات الكاملة، وللمشي على أطراف الأصابع الخطوات والنوبات.</li><li>شرط الدورتين وفاصل الثانيتين قواعد مقترحة لتنظيم القياس، وليست معايير تشخيصية، وتُستخدم النسخة نفسها في التسجيل البشري والنظام.</li></ul>
     <h2>4. المرجع البشري</h2>
-    <p>تعدّ الأخصائية السلوكيات في الفيديو نفسه دون الاطلاع على نتيجة النظام (ملاحظة معماة)، وتسجّل أوقات الحدوث.</p>
+    <p>تعدّ الأخصائية السلوكيات في الفيديو نفسه، ونتيجة النظام مخفية في صفحة المقارنة حتى يُحفظ تسجيلها، وتسجّل وقت كل حدث إلزاميًا لأن تساوي العدد الكلي لا يعني تطابق الأحداث. ويُقارن التسجيل بمخرجات النظام الأصلية؛ واعتماد الأحداث أو تصحيحها خطوة منفصلة لا تغيّرها.</p>
     <h2>5. مؤشرات الاتفاق والدقة</h2>
     <p>اتفاق العدّ الكلي (Total count IOA):</p>
     <div class="formula">IOA = (smaller count ÷ larger count) × 100</div>
@@ -1717,8 +1750,11 @@ function vMethod(){
     <p>موافقة مستنيرة مكتوبة من ولي الأمر، وقبول الطفل بحسب قدرته مع التوقف عند الانزعاج، ومراجعة استشارية من أخصائية تحليل سلوك، والالتزام بمدونة أخلاقيات مجلس اعتماد محللي السلوك (BACB). التجارب الحالية على متطوعين يؤدون الحركات؛ ولا تُضاف بيانات أطفال أو حالات فعلية قبل الحصول على الموافقات الأخلاقية البحثية المطلوبة، ونموذج الموافقة داخل النظام وحده لا يغني عنها.</p>
     <h2>9. حدود النموذج الأولي</h2>
     <ul><li>دون علامة لونية يفترض النظام طفلًا واحدًا في الصورة؛ ومع العلامة قد يُفقد التتبع إذا تشابه لون العلامة مع ملابس الآخرين أو خلفية الغرفة.</li><li>التصفيق السريع ورفرفة اليدين قد يفوتان عند 15 إطارًا/ث؛ لذلك يتاح 25 إطارًا/ث.</li><li>المشي على أطراف الأصابع يحتاج تصويرًا من الجانب يُظهر الكعبين والأرض؛ ومن الأمام تُسجَّل الفترة «غير قابلة للتحديد».</li><li>الدوران حول النفس يعتمد على تقدير عمق الكتفين من كاميرا واحدة، وهو تقدير تقريبي يحتاج اختبارًا على مقاطع حقيقية.</li><li>التلويح يشبه الرفرفة في شكله الحركي ولا يُفرَّق من الحركة وحدها؛ يُسجَّل للمراجعة دون افتراض الغرض.</li><li>يفترض شخصًا واحدًا في الإطار وزاوية تُظهر الجسم كاملًا.</li><li>السياق (ما حدث قبل السلوك) يُدخله الأخصائي في هذه المرحلة؛ رصده آليًا عمل مستقبلي بنماذج الرؤية واللغة.</li><li>«الحركة خارج الفئات المحددة» تُعرض للاطلاع فقط (حركة واضحة للأطراف ثانية فأكثر لم تطابق أي تعريف)، ولا يصنّفها النظام ولا يعدّها.</li></ul>
+    <h2>تطوير مستقبلي</h2>
+    <p>تمييز الصوت غير مضاف في النسخة الحالية؛ تُستكمل أولًا اختبارات الحركات المحددة. ويمكن دراسته لاحقًا بعد تحديد المقصود منه وطريقة اختباره ومتطلبات الخصوصية.</p>
     <h2>المراجع</h2>
     <ol class="refs">
+      <li>The IRIS Center. <i>Defining behavior</i> [Case study unit]. Vanderbilt University, Peabody College. <a href="https://iris.peabody.vanderbilt.edu/case-study/defining-behavior/" target="_blank" rel="noopener">iris.peabody.vanderbilt.edu</a></li>
       <li>Cooper, J. O., Heron, T. E., & Heward, W. L. (2020). <i>Applied Behavior Analysis</i> (3rd ed.). Pearson.</li>
       <li>Behavior Analyst Certification Board. (2020). <i>Ethics Code for Behavior Analysts</i>.</li>
       <li>Bazarevsky, V., et al. (2020). BlazePose: On-device real-time body pose tracking. <i>CVPR Workshop on Computer Vision for AR/VR</i>.</li>
